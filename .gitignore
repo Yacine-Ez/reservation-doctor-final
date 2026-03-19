@@ -1,0 +1,5 @@
+﻿server/.env
+server/prisma/dev.db
+server/node
+server/server/data/
+server/test_openai.js
