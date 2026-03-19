@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { HashRouter } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { ClerkProvider } from "@clerk/clerk-react";
 import { MantineProvider } from "@mantine/core";
 import "@mantine/core/styles.css";
@@ -39,14 +39,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <MantineProvider>
       {hasClerk ? (
         <ClerkProvider publishableKey={rawClerkKey} signInFallbackRedirectUrl="/doctors">
-          <HashRouter>
+          <BrowserRouter>
             <App />
-          </HashRouter>
+          </BrowserRouter>
         </ClerkProvider>
       ) : (
-        <HashRouter>
+        <BrowserRouter>
           <App />
-        </HashRouter>
+        </BrowserRouter>
       )}
     </MantineProvider>
   </ErrorBoundary>
