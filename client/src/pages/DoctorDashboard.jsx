@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useAuth, useClerk } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
-import { isValidClerkPublishableKey } from "../utils/clerk";
 import { getAppointments } from "../services/api";
 import DoctorDashboardHeader from "./doctor-dashboard/DoctorDashboardHeader";
 import DoctorDashboardSidebar from "./doctor-dashboard/DoctorDashboardSidebar";
@@ -11,8 +9,6 @@ import DoctorProfilePanel from "./doctor-dashboard/DoctorProfilePanel";
 import DoctorPatientsPanel from "./doctor-dashboard/DoctorPatientsPanel";
 import DoctorAppointmentsPanel from "./doctor-dashboard/DoctorAppointmentsPanel";
 import useDoctorDashboardState from "./doctor-dashboard/useDoctorDashboardState";
-
-const hasClerk = isValidClerkPublishableKey(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
 function DoctorDashboardView({ onLogout, ownerKey }) {
   const navigate = useNavigate();
@@ -136,20 +132,6 @@ function DoctorDashboardView({ onLogout, ownerKey }) {
   );
 }
 
-function DoctorDashboardWithClerk() {
-  const { signOut } = useClerk();
-  const { userId } = useAuth();
-  const ownerKey = userId || "clerk-doctor";
-
-  const handleLogout = () => {
-    localStorage.removeItem("reservation-auth");
-    localStorage.removeItem("reservation-role");
-    signOut({ redirectUrl: "/" });
-  };
-
-  return <DoctorDashboardView onLogout={handleLogout} ownerKey={ownerKey} />;
-}
-
 function DoctorDashboardLocal() {
   const [ownerKey, setOwnerKey] = useState("");
 
@@ -176,7 +158,7 @@ function DoctorDashboardLocal() {
 }
 
 function DoctorDashboard() {
-  return hasClerk ? <DoctorDashboardWithClerk /> : <DoctorDashboardLocal />;
+  return <DoctorDashboardLocal />;
 }
 
 export default DoctorDashboard;

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useClerk } from "@clerk/clerk-react";
 import { Skeleton } from "@mantine/core";
 import { Bell, Bot, Calendar, Home, MessageCircle, User } from "lucide-react";
 import {
@@ -13,9 +12,6 @@ import {
 import Navbar from "../components/Navbar";
 import DoctorCard from "../components/DoctorCard";
 import AiTriagePanel from "../components/AiTriagePanel";
-import { isValidClerkPublishableKey } from "../utils/clerk";
-
-const hasClerk = isValidClerkPublishableKey(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
 function DoctorsView({ onLogout }) {
   const [doctors, setDoctors] = useState([]);
@@ -765,17 +761,6 @@ function DoctorsView({ onLogout }) {
   );
 }
 
-function DoctorsWithClerk() {
-  const { signOut } = useClerk();
-  const handleLogout = () => {
-    localStorage.removeItem("reservation-auth");
-    localStorage.removeItem("reservation-role");
-    signOut({ redirectUrl: "/" });
-  };
-
-  return <DoctorsView onLogout={handleLogout} />;
-}
-
 function DoctorsLocal() {
   const handleLogout = () => {
     localStorage.removeItem("reservation-auth");
@@ -787,7 +772,7 @@ function DoctorsLocal() {
 }
 
 function Doctors() {
-  return hasClerk ? <DoctorsWithClerk /> : <DoctorsLocal />;
+  return <DoctorsLocal />;
 }
 
 export default Doctors;

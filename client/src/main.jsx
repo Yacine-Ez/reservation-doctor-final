@@ -1,15 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { ClerkProvider } from "@clerk/clerk-react";
 import { MantineProvider } from "@mantine/core";
 import "@mantine/core/styles.css";
 import App from "./App";
-import { isValidClerkPublishableKey } from "./utils/clerk";
 import "./index.css";
-
-const rawClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-const hasClerk = isValidClerkPublishableKey(rawClerkKey);
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -37,17 +32,9 @@ class ErrorBoundary extends React.Component {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <ErrorBoundary>
     <MantineProvider>
-      {hasClerk ? (
-        <ClerkProvider publishableKey={rawClerkKey} signInFallbackRedirectUrl="/doctors">
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </ClerkProvider>
-      ) : (
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      )}
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
     </MantineProvider>
   </ErrorBoundary>
 );
