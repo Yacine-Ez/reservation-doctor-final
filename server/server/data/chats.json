@@ -1,0 +1,84 @@
+[
+  {
+    "id": 1,
+    "doctorId": 1,
+    "name": "Dr Ahmed",
+    "specialty": "Cardiologue",
+    "lastMessage": "Je reserve le creneau Demain 10:30.",
+    "messages": [
+      {
+        "from": "doctor",
+        "text": "Bonjour, decrivez vos symptomes."
+      },
+      {
+        "from": "patient",
+        "text": "Douleurs thoraciques apres effort."
+      },
+      {
+        "from": "doctor",
+        "text": "Avez-vous des antecedents cardiaques ?"
+      },
+      {
+        "from": "patient",
+        "text": "Je reserve le creneau Vendredi 14:00."
+      },
+      {
+        "from": "patient",
+        "text": "Je reserve le creneau Demain 10:30."
+      }
+    ],
+    "slots": [
+      "Aujourd'hui 16:00",
+      "Demain 10:30",
+      "Vendredi 14:00"
+    ]
+  },
+  {
+    "id": 2,
+    "doctorId": 2,
+    "name": "Dr Sara",
+    "specialty": "Dentiste",
+    "lastMessage": "Je reserve le creneau Demain 09:00.",
+    "messages": [
+      {
+        "from": "doctor",
+        "text": "Ou se situe la douleur ?"
+      },
+      {
+        "from": "patient",
+        "text": "Dent du fond, surtout la nuit."
+      },
+      {
+        "from": "patient",
+        "text": "Je reserve le creneau Demain 09:00."
+      }
+    ],
+    "slots": [
+      "Demain 09:00",
+      "Demain 11:30",
+      "Samedi 15:00"
+    ]
+  },
+  {
+    "id": 3,
+    "doctorId": 3,
+    "name": "Dr Youssef",
+    "specialty": "Dermatologue",
+    "lastMessage": "Avez-vous change de creme ?",
+    "messages": [
+      {
+        "from": "doctor",
+        "text": "Depuis quand les demangeaisons ?"
+      },
+      {
+        "from": "patient",
+        "text": "Depuis 5 jours."
+      }
+    ],
+    "slots": [
+      "Jeudi 12:00",
+      "Jeudi 17:30",
+      "Lundi 09:30"
+    ]
+  }
+]

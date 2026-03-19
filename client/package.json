@@ -11,8 +11,12 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.3",
+    "@emotion/react": "^11.14.0",
+    "@mantine/core": "^8.3.18",
+    "@mantine/hooks": "^8.3.18",
     "axios": "^1.13.6",
     "lucide-react": "^0.577.0",
+    "motion": "^12.38.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.1"

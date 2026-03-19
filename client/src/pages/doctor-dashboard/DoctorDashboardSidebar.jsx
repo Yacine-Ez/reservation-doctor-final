@@ -1,8 +1,13 @@
+import { Skeleton } from "@mantine/core";
+
 function DoctorDashboardSidebar({
   myDoctorCard,
   myDoctorCardId,
+  appointments,
+  loadingAppointments,
   onShowProfile,
   onShowChat,
+  onShowAppointments,
   onShowOnboarding,
   onGoHome,
   onLogout,
@@ -53,6 +58,23 @@ function DoctorDashboardSidebar({
         >
           Logout
         </button>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-3">
+        <button
+          type="button"
+          onClick={onShowAppointments}
+          className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"
+        >
+          Rendez-vous
+          <span className="text-[10px]">{loadingAppointments ? "…" : appointments?.length || 0}</span>
+        </button>
+        {loadingAppointments && (
+          <div className="mt-3 space-y-2">
+            <Skeleton height={10} radius="xl" />
+            <Skeleton height={10} radius="xl" />
+          </div>
+        )}
       </div>
     </aside>
   );

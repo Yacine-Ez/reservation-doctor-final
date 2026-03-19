@@ -1,10 +1,13 @@
 import { Link } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 
-function DoctorCard({ doctor }) {
+function DoctorCard({ doctor, isRecommended = false, onChat }) {
   return (
-    <div className="bg-white rounded-2xl shadow-md p-5 hover:shadow-xl transition">
-
+    <div
+      className={`bg-white rounded-2xl shadow-md p-5 hover:shadow-xl transition ${
+        isRecommended ? "ring-2 ring-slate-900/80" : ""
+      }`}
+    >
       <div className="flex items-center gap-4">
         <img
           src={doctor.photo}
@@ -18,9 +21,7 @@ function DoctorCard({ doctor }) {
 
           <div className="flex items-center text-yellow-500">
             {Array.from({ length: 5 }, (_, i) => (
-              <span key={i}>
-                {i < Math.floor(doctor.rating) ? "★" : "☆"}
-              </span>
+              <span key={i}>{i < Math.floor(doctor.rating) ? "★" : "☆"}</span>
             ))}
           </div>
 
@@ -36,13 +37,15 @@ function DoctorCard({ doctor }) {
           View Profile
         </Link>
 
-        <button className="flex items-center gap-2 border px-3 py-2 rounded-lg">
+        <button
+          type="button"
+          onClick={() => onChat?.(doctor)}
+          className="flex items-center gap-2 border px-3 py-2 rounded-lg"
+        >
           <MessageCircle size={18} />
           Chat
         </button>
       </div>
-
-      
     </div>
   );
 }

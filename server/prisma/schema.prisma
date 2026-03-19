@@ -1,0 +1,68 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Doctor {
+  id             Int       @id @default(autoincrement())
+  name           String
+  location       String
+  specialty      String
+  rating         Float?
+  photo          String
+  description    String
+  ownerKey       String?
+  referralSource String?
+  plan           String?
+  isCustom       Boolean?  @default(false)
+  isPremium      Boolean?  @default(false)
+  createdAt      DateTime  @default(now())
+  chats          ChatThread[]
+  appointments   Appointment[]
+}
+
+model Patient {
+  id     Int    @id @default(autoincrement())
+  name   String
+  email  String
+}
+
+model ChatThread {
+  id         Int          @id @default(autoincrement())
+  doctorId   Int
+  doctor     Doctor       @relation(fields: [doctorId], references: [id])
+  name       String
+  specialty  String
+  lastMessage String
+  slotsJson  String
+  messages   ChatMessage[]
+  appointments Appointment[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model ChatMessage {
+  id        Int       @id @default(autoincrement())
+  chatId    Int
+  chat      ChatThread @relation(fields: [chatId], references: [id])
+  from      String
+  text      String
+  createdAt DateTime  @default(now())
+}
+
+model Appointment {
+  id         Int      @id @default(autoincrement())
+  chatId     Int
+  doctorId   Int
+  chat       ChatThread @relation(fields: [chatId], references: [id])
+  doctor     Doctor     @relation(fields: [doctorId], references: [id])
+  doctorName String
+  specialty  String
+  slot       String
+  status     String
+  createdAt  DateTime @default(now())
+}

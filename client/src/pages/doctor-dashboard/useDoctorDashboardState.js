@@ -121,7 +121,7 @@ function useDoctorDashboardState(ownerKey) {
     }
 
     try {
-      await deleteDoctor(myDoctorCardId, { ownerKey });
+      await deleteDoctor(myDoctorCardId, ownerKey);
       setMyDoctorCard(null);
       setFormData({
         name: "",
@@ -150,6 +150,11 @@ function useDoctorDashboardState(ownerKey) {
 
   const handleShowChat = () => {
     setActivePanel("chat");
+    setShowOnboarding(false);
+  };
+
+  const handleShowAppointments = () => {
+    setActivePanel("appointments");
     setShowOnboarding(false);
   };
 
@@ -186,6 +191,7 @@ function useDoctorDashboardState(ownerKey) {
     handleDeleteCard,
     handleShowProfile,
     handleShowChat,
+    handleShowAppointments,
     handleShowOnboarding,
     handleSelectReferralSource,
     handleSelectPlan,

@@ -3,11 +3,13 @@ import axios from "axios";
 import { useAuth, useClerk } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import { isValidClerkPublishableKey } from "../utils/clerk";
+import { getAppointments } from "../services/api";
 import DoctorDashboardHeader from "./doctor-dashboard/DoctorDashboardHeader";
 import DoctorDashboardSidebar from "./doctor-dashboard/DoctorDashboardSidebar";
 import DoctorOnboardingFlow from "./doctor-dashboard/DoctorOnboardingFlow";
 import DoctorProfilePanel from "./doctor-dashboard/DoctorProfilePanel";
 import DoctorPatientsPanel from "./doctor-dashboard/DoctorPatientsPanel";
+import DoctorAppointmentsPanel from "./doctor-dashboard/DoctorAppointmentsPanel";
 import useDoctorDashboardState from "./doctor-dashboard/useDoctorDashboardState";
 
 const hasClerk = isValidClerkPublishableKey(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
@@ -15,6 +17,9 @@ const hasClerk = isValidClerkPublishableKey(import.meta.env.VITE_CLERK_PUBLISHAB
 function DoctorDashboardView({ onLogout, ownerKey }) {
   const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [loadingPatients, setLoadingPatients] = useState(true);
+  const [loadingAppointments, setLoadingAppointments] = useState(true);
   const {
     myDoctorCard,
     activePanel,
@@ -32,17 +37,40 @@ function DoctorDashboardView({ onLogout, ownerKey }) {
     handleDeleteCard,
     handleShowProfile,
     handleShowChat,
+    handleShowAppointments,
     handleShowOnboarding,
     handleSelectReferralSource,
     handleSelectPlan,
   } = useDoctorDashboardState(ownerKey);
 
   useEffect(() => {
+    let patientsTimer;
+    setLoadingPatients(true);
     axios
       .get("http://localhost:5000/api/patients")
       .then((res) => setPatients(res.data))
-      .catch((err) => console.log(err));
+      .catch((err) => console.log(err))
+      .finally(() => {
+        patientsTimer = setTimeout(() => setLoadingPatients(false), 2000);
+      });
+    return () => clearTimeout(patientsTimer);
   }, []);
+
+  useEffect(() => {
+    if (!myDoctorCard?.id) {
+      setAppointments([]);
+      return;
+    }
+    let appointmentsTimer;
+    setLoadingAppointments(true);
+    getAppointments(myDoctorCard.id)
+      .then((res) => setAppointments(res.data || []))
+      .catch((err) => console.log(err))
+      .finally(() => {
+        appointmentsTimer = setTimeout(() => setLoadingAppointments(false), 2000);
+      });
+    return () => clearTimeout(appointmentsTimer);
+  }, [myDoctorCard?.id]);
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -53,8 +81,11 @@ function DoctorDashboardView({ onLogout, ownerKey }) {
           <DoctorDashboardSidebar
             myDoctorCard={myDoctorCard}
             myDoctorCardId={myDoctorCardId}
+            appointments={appointments}
+            loadingAppointments={loadingAppointments}
             onShowProfile={handleShowProfile}
             onShowChat={handleShowChat}
+            onShowAppointments={handleShowAppointments}
             onShowOnboarding={handleShowOnboarding}
             onGoHome={() => navigate("/")}
             onLogout={onLogout}
@@ -80,7 +111,20 @@ function DoctorDashboardView({ onLogout, ownerKey }) {
                 {activePanel === "profile" && (
                   <DoctorProfilePanel myDoctorCard={myDoctorCard} onDeleteCard={handleDeleteCard} />
                 )}
-                {activePanel === "chat" && <DoctorPatientsPanel patients={patients} />}
+                {activePanel === "chat" && (
+                  <DoctorPatientsPanel
+                    patients={patients}
+                    myDoctorCard={myDoctorCard}
+                    loadingPatients={loadingPatients}
+                  />
+                )}
+                {activePanel === "appointments" && (
+                  <DoctorAppointmentsPanel
+                    appointments={appointments}
+                    loadingAppointments={loadingAppointments}
+                    onAppointmentsChange={setAppointments}
+                  />
+                )}
               </div>
             )}
 
