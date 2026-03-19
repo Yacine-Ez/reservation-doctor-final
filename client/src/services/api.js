@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
+  baseURL: "https://reservation-doctor-final-1.onrender.com/api"|| "/api",
 });
 
 export const getDoctors = () => API.get("/doctors");
