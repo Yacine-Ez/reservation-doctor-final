@@ -2,7 +2,8 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
-const { Agent } = require("undici");
+const { Agent, request } = require("undici");
+const dns = require("dns");
 
 const app = express();
 const prisma = new PrismaClient();
@@ -15,7 +16,12 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const openrouterAgent = new Agent({ connect: { family: 4 } });
+const openrouterAgent = new Agent({
+  connect: {
+    lookup: (hostname, options, callback) =>
+      dns.lookup(hostname, { ...options, family: 4 }, callback),
+  },
+});
 
 const seedDoctors = [
   {
@@ -538,29 +544,32 @@ app.post("/api/ai/triage", async (req, res) => {
       ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
     ];
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "X-Title": "Reservation Doctor",
-      },
-      dispatcher: openrouterAgent,
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages: chatMessages,
-        temperature: 0.2,
-        top_p: 0.9,
-        max_tokens: 300,
-      }),
-    });
+    const { statusCode, body } = await request(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "X-Title": "Reservation Doctor",
+        },
+        dispatcher: openrouterAgent,
+        body: JSON.stringify({
+          model: OPENROUTER_MODEL,
+          messages: chatMessages,
+          temperature: 0.2,
+          top_p: 0.9,
+          max_tokens: 300,
+        }),
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter error: ${response.status} ${errorText}`);
+    const rawText = await body.text();
+    if (statusCode < 200 || statusCode >= 300) {
+      throw new Error(`OpenRouter error: ${statusCode} ${rawText}`);
     }
 
-    const data = await response.json();
+    const data = JSON.parse(rawText);
     const outputText = data?.choices?.[0]?.message?.content || "";
 
     let parsed;
