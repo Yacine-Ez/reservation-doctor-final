@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
+const { Agent } = require("undici");
 
 const app = express();
 const prisma = new PrismaClient();
@@ -14,6 +15,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const openrouterAgent = new Agent({ connect: { family: 4 } });
 
 const seedDoctors = [
   {
@@ -543,6 +545,7 @@ app.post("/api/ai/triage", async (req, res) => {
         "Content-Type": "application/json",
         "X-Title": "Reservation Doctor",
       },
+      dispatcher: openrouterAgent,
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
         messages: chatMessages,
