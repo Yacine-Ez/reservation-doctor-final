@@ -610,5 +610,5 @@ ensureSeedData()
   })
   .catch((error) => {
     console.error("Failed to seed database:", error);
-    process.exit(1);
+    process.exit(2);
   });
