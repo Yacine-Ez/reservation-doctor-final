@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
 const prisma = new PrismaClient();
@@ -12,8 +13,9 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen2.5:3b";
+const GEMINI_MODEL = "gemini-1.5-flash";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const geminiClient = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
 const seedDoctors = [
   {
@@ -519,40 +521,31 @@ app.post("/api/ai/triage", async (req, res) => {
       return res.status(400).json({ message: "messages and doctors are required" });
     }
 
-    const systemPrompt = buildSystemPrompt(doctorsList);
-    const chatMessages = [
-      { role: "system", content: systemPrompt },
-      ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
-    ];
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120000);
-
-    const response = await fetch(`${OLLAMA_HOST}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        messages: chatMessages,
-        stream: false,
-        keep_alive: "5m",
-        options: {
-          temperature: 0.2,
-          top_p: 0.9,
-          num_predict: 220,
-        },
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Ollama error: ${response.status} ${errorText}`);
+    if (!geminiClient) {
+      return res.status(500).json({ message: "GEMINI_API_KEY is missing" });
     }
 
-    const data = await response.json();
-    const outputText = data?.message?.content || "";
+    const systemPrompt = buildSystemPrompt(doctorsList);
+    const model = geminiClient.getGenerativeModel({
+      model: GEMINI_MODEL,
+      systemInstruction: systemPrompt,
+    });
+
+    const contents = messages.map((msg) => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }],
+    }));
+
+    const result = await model.generateContent({
+      contents,
+      generationConfig: {
+        temperature: 0.2,
+        topP: 0.9,
+        maxOutputTokens: 300,
+      },
+    });
+
+    const outputText = result?.response?.text?.() || "";
 
     let parsed;
     try {
@@ -593,16 +586,6 @@ app.post("/api/ai/triage", async (req, res) => {
 
     return res.json(parsed);
   } catch (error) {
-    if (error && error.name === "AbortError") {
-      return res.json({
-        assistant_message:
-          "Desole, la reponse prend trop de temps. Pouvez-vous reformuler en une phrase courte ?",
-        done: false,
-        filters: { specialty: null, location: null },
-        recommended_doctor_ids: [],
-        why: "",
-      });
-    }
     console.error("AI triage error:", error);
     return res.status(500).json({ message: "AI triage failed" });
   }
