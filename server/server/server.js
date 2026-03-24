@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
 const prisma = new PrismaClient();
@@ -13,9 +12,8 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-const GEMINI_MODEL = "gemini-1.5-flash";
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const geminiClient = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 const seedDoctors = [
   {
@@ -468,6 +466,8 @@ function buildSystemPrompt(doctorsList) {
     "Parle uniquement en francais.",
     "Ne donne pas de diagnostic ni de traitement. Reste sur le triage et l'orientation.",
     "Pose une seule question a la fois, et pas plus de 3 questions avant de proposer un medecin.",
+    "Si l'utilisateur dit seulement bonjour/salut/cc ou reste vague, reponds poliment puis demande une precision claire (symptome, specialite, ville).",
+    "Ne propose aucun medecin tant qu'il n'y a pas un besoin medical clair ou une specialite/ville.",
     "Quand tu as assez d'information, choisis 1 a 3 medecins parmi la liste fournie.",
     "Si la specialite ou la ville est claire, propose directement des medecins adaptes.",
     "Tu dois repondre en JSON valide uniquement, sans texte en dehors du JSON.",
@@ -521,31 +521,44 @@ app.post("/api/ai/triage", async (req, res) => {
       return res.status(400).json({ message: "messages and doctors are required" });
     }
 
-    if (!geminiClient) {
-      return res.status(500).json({ message: "GEMINI_API_KEY is missing" });
+    const lastUser = [...messages].reverse().find((msg) => msg.role === "user");
+    const lastText = (lastUser?.content || "").trim();
+    const guessed = guessFiltersFromText(lastText, doctorsList);
+    const missingContext = !guessed.specialty && !guessed.location;
+
+    if (!OPENROUTER_API_KEY) {
+      return res.status(500).json({ message: "OPENROUTER_API_KEY is missing" });
     }
 
     const systemPrompt = buildSystemPrompt(doctorsList);
-    const model = geminiClient.getGenerativeModel({
-      model: GEMINI_MODEL,
-      systemInstruction: systemPrompt,
-    });
+    const chatMessages = [
+      { role: "system", content: systemPrompt },
+      ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
+    ];
 
-    const contents = messages.map((msg) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }],
-    }));
-
-    const result = await model.generateContent({
-      contents,
-      generationConfig: {
-        temperature: 0.2,
-        topP: 0.9,
-        maxOutputTokens: 300,
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "X-Title": "Reservation Doctor",
       },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: chatMessages,
+        temperature: 0.2,
+        top_p: 0.9,
+        max_tokens: 300,
+      }),
     });
 
-    const outputText = result?.response?.text?.() || "";
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter error: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    const outputText = data?.choices?.[0]?.message?.content || "";
 
     let parsed;
     try {
@@ -555,8 +568,6 @@ app.post("/api/ai/triage", async (req, res) => {
     }
 
     if (!parsed) {
-      const lastUser = [...messages].reverse().find((msg) => msg.role === "user");
-      const guessed = guessFiltersFromText(lastUser?.content || "", doctorsList);
       const fallbackIds = fallbackRecommendations(doctorsList, guessed);
       return res.json({
         assistant_message: "Voici des medecins proposes selon votre demande.",
@@ -573,8 +584,6 @@ app.post("/api/ai/triage", async (req, res) => {
       : [];
 
     if (safeIds.length === 0) {
-      const lastUser = [...messages].reverse().find((msg) => msg.role === "user");
-      const guessed = guessFiltersFromText(lastUser?.content || "", doctorsList);
       const mergedFilters = {
         specialty: safeFilters.specialty || guessed.specialty,
         location: safeFilters.location || guessed.location,
