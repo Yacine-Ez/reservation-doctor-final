@@ -243,9 +243,7 @@ function DoctorsView({ onLogout }) {
     setFiltered(nextFiltered.length ? nextFiltered : doctors);
     setRecommendedIds(hasRecommendations ? nextRecommendedIds : []);
     setAiNote(why || "");
-    if (done || hasRecommendations) {
-      setActiveView("doctors");
-    }
+    // Stay in AI chat; user can switch views manually.
   };
 
   return (
