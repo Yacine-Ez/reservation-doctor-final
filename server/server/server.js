@@ -1,12 +1,13 @@
 const express = require("express");
 const cors = require("cors");
+const dns = require("dns");
 require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
-const { Agent, request } = require("undici");
-const dns = require("dns");
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 const app = express();
 const prisma = new PrismaClient();
+dns.setDefaultResultOrder("ipv4first");
 app.get("/api", (req, res) => {
   res.json({ message: "API working ✅" });
 });
@@ -15,13 +16,6 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const openrouterAgent = new Agent({
-  connect: {
-    lookup: (hostname, options, callback) =>
-      dns.lookup(hostname, { ...options, family: 4 }, callback),
-  },
-});
 
 const seedDoctors = [
   {
@@ -543,33 +537,28 @@ app.post("/api/ai/triage", async (req, res) => {
       { role: "system", content: systemPrompt },
       ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
     ];
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "X-Title": "Reservation Doctor",
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: chatMessages,
+        temperature: 0.2,
+        top_p: 0.9,
+        max_tokens: 300,
+      }),
+    });
 
-    const { statusCode, body } = await request(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "X-Title": "Reservation Doctor",
-        },
-        dispatcher: openrouterAgent,
-        body: JSON.stringify({
-          model: OPENROUTER_MODEL,
-          messages: chatMessages,
-          temperature: 0.2,
-          top_p: 0.9,
-          max_tokens: 300,
-        }),
-      }
-    );
-
-    const rawText = await body.text();
-    if (statusCode < 200 || statusCode >= 300) {
-      throw new Error(`OpenRouter error: ${statusCode} ${rawText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI error: ${response.status} ${errorText}`);
     }
 
-    const data = JSON.parse(rawText);
+    const data = await response.json();
     const outputText = data?.choices?.[0]?.message?.content || "";
 
     let parsed;
