@@ -13,6 +13,7 @@ function useDoctorDashboardState(ownerKey) {
     photo: "",
     specialty: "Dentiste",
     location: "",
+    experienceYears: "",
     referralSource: "YouTube",
     plan: "Basic",
   });
@@ -42,6 +43,7 @@ function useDoctorDashboardState(ownerKey) {
           photo: mine.photo || "",
           specialty: mine.specialty || "Dentiste",
           location: mine.location || "",
+          experienceYears: mine.experienceYears ? String(mine.experienceYears) : "",
           referralSource: mine.referralSource || "YouTube",
           plan: mine.plan || "Basic",
         });
@@ -82,12 +84,18 @@ function useDoctorDashboardState(ownerKey) {
     }
 
     try {
+      const payload = {
+        ...formData,
+        experienceYears: formData.experienceYears
+          ? Number(formData.experienceYears)
+          : undefined,
+      };
       if (myDoctorCardId) {
-        const res = await updateDoctor(myDoctorCardId, { ...formData, ownerKey });
+        const res = await updateDoctor(myDoctorCardId, { ...payload, ownerKey });
         setMyDoctorCard(res.data);
         setSaveStatus("Card updated successfully.");
       } else {
-        const res = await createDoctor({ ...formData, ownerKey });
+        const res = await createDoctor({ ...payload, ownerKey });
         setMyDoctorCard(res.data);
         setSaveStatus("Card created successfully.");
       }
@@ -128,6 +136,7 @@ function useDoctorDashboardState(ownerKey) {
         photo: "",
         specialty: "Dentiste",
         location: "",
+        experienceYears: "",
         referralSource: "YouTube",
         plan: "Basic",
       });

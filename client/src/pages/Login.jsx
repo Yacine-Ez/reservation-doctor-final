@@ -37,7 +37,7 @@ function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-6">
+    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-4 sm:p-6">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/70 shadow-2xl backdrop-blur md:grid-cols-2">
           <section className="flex flex-col justify-center p-8 md:p-10">
@@ -94,7 +94,7 @@ function Login() {
           <section className="flex items-center justify-center border-t border-slate-800 bg-slate-950/40 p-6 md:border-l md:border-t-0">
             <form
               onSubmit={handleSubmit}
-              className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-8 text-left text-sm text-slate-200"
+              className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-6 sm:p-8 text-left text-sm text-slate-200"
             >
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">

@@ -4,6 +4,7 @@ const dns = require("dns");
 require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const Stripe = require("stripe");
 
 const app = express();
 const prisma = new PrismaClient();
@@ -16,6 +17,10 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_CURRENCY = process.env.STRIPE_CURRENCY || "mad";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 
 const seedDoctors = [
   {
@@ -123,10 +128,37 @@ async function ensureSeedData() {
   }
 }
 
+function extractExperienceYears(description) {
+  if (!description) return null;
+  const match = description.match(/(\d+)\s*(years?|ans?)/i);
+  if (!match) return null;
+  return Number(match[1]);
+}
+
+function getPriceFromPlan(plan) {
+  if (!plan) return 200;
+  const normalized = String(plan).toLowerCase();
+  if (normalized.includes("vip")) return 450;
+  if (normalized.includes("premium")) return 300;
+  if (normalized.includes("basic")) return 180;
+  return 200;
+}
+
+function mapDoctor(doctor) {
+  if (!doctor) return doctor;
+  const priceValue = getPriceFromPlan(doctor.plan);
+  return {
+    ...doctor,
+    experienceYears: extractExperienceYears(doctor.description),
+    priceValue,
+    priceLabel: `${priceValue} MAD`,
+  };
+}
+
 app.get("/api/doctors", (req, res) => {
   prisma.doctor
     .findMany()
-    .then((docs) => res.json(docs))
+    .then((docs) => res.json(docs.map(mapDoctor)))
     .catch(() => res.status(500).json({ message: "server error" }));
 });
 
@@ -138,13 +170,36 @@ app.get("/api/doctors/:id", (req, res) => {
       if (!doctor) {
         return res.status(404).json({ message: "Doctor not found" });
       }
-      return res.send(doctor);
+      return res.send(mapDoctor(doctor));
     })
     .catch(() => res.status(500).json({ message: "server error" }));
 });
 
+const DEFAULT_TIME_SLOTS = ["09:00", "10:30", "12:00", "14:00", "16:00", "18:00"];
+
+app.get("/api/doctors/:id/availability", async (req, res) => {
+  const doctorId = Number(req.params.id);
+  const date = req.query.date;
+  if (!doctorId || !date) {
+    return res.status(400).json({ message: "doctorId and date are required" });
+  }
+
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: { doctorId, slot: { startsWith: `${date} ` } },
+    });
+    const reservedTimes = new Set(
+      appointments.map((appt) => appt.slot.split(" ")[1]).filter(Boolean)
+    );
+    const available = DEFAULT_TIME_SLOTS.filter((time) => !reservedTimes.has(time));
+    return res.json({ date, available });
+  } catch {
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
 app.post("/api/doctors", (req, res) => {
-  const { name, location, specialty, photo, ownerKey, referralSource, plan } = req.body;
+  const { name, location, specialty, photo, ownerKey, referralSource, plan, experienceYears } = req.body;
 
   if (!name || !location || !specialty || !photo || !ownerKey) {
     return res
@@ -162,7 +217,9 @@ app.post("/api/doctors", (req, res) => {
         data: {
           name,
           location,
-          description: `${specialty} based in ${location}.`,
+          description: experienceYears
+            ? `${specialty} based in ${location}. Experience: ${experienceYears} ans.`
+            : `${specialty} based in ${location}.`,
           specialty,
           rating: 4.0,
           photo,
@@ -176,7 +233,7 @@ app.post("/api/doctors", (req, res) => {
     })
     .then((doctor) => {
       if (doctor) {
-        res.status(201).json(doctor);
+        res.status(201).json(mapDoctor(doctor));
       }
     })
     .catch(() => res.status(500).json({ message: "server error" }));
@@ -184,7 +241,7 @@ app.post("/api/doctors", (req, res) => {
 
 app.put("/api/doctors/:id", (req, res) => {
   const id = Number(req.params.id);
-  const { ownerKey } = req.body;
+  const { ownerKey, experienceYears } = req.body;
 
   prisma.doctor
     .findUnique({ where: { id } })
@@ -197,12 +254,20 @@ app.put("/api/doctors/:id", (req, res) => {
       }
       return prisma.doctor.update({
         where: { id },
-        data: { ...req.body, id },
+        data: {
+          ...req.body,
+          description: experienceYears
+            ? `${req.body.specialty || doctor.specialty} based in ${
+                req.body.location || doctor.location
+              }. Experience: ${experienceYears} ans.`
+            : req.body.description || doctor.description,
+          id,
+        },
       });
     })
     .then((updated) => {
       if (updated) {
-        res.json(updated);
+        res.json(mapDoctor(updated));
       }
     })
     .catch(() => res.status(500).json({ message: "server error" }));
@@ -235,6 +300,63 @@ app.get("/api/patients", (req, res) => {
   prisma.patient
     .findMany()
     .then((list) => res.json(list))
+    .catch(() => res.status(500).json({ message: "server error" }));
+});
+
+app.get("/api/patients/profile", (req, res) => {
+  const patientKey = req.query.patientKey;
+  if (!patientKey) {
+    return res.status(400).json({ message: "patientKey is required" });
+  }
+  prisma.patient
+    .findUnique({ where: { patientKey: String(patientKey) } })
+    .then((patient) => res.json(patient || null))
+    .catch(() => res.status(500).json({ message: "server error" }));
+});
+
+app.put("/api/patients/profile", (req, res) => {
+  const {
+    patientKey,
+    name,
+    email,
+    phone,
+    location,
+    allergies,
+    chronicConditions,
+    medications,
+    notes,
+  } = req.body || {};
+
+  if (!patientKey || !name || !email) {
+    return res.status(400).json({ message: "patientKey, name and email are required" });
+  }
+
+  prisma.patient
+    .upsert({
+      where: { patientKey: String(patientKey) },
+      update: {
+        name,
+        email,
+        phone: phone || null,
+        location: location || null,
+        allergies: allergies || null,
+        chronicConditions: chronicConditions || null,
+        medications: medications || null,
+        notes: notes || null,
+      },
+      create: {
+        patientKey: String(patientKey),
+        name,
+        email,
+        phone: phone || null,
+        location: location || null,
+        allergies: allergies || null,
+        chronicConditions: chronicConditions || null,
+        medications: medications || null,
+        notes: notes || null,
+      },
+    })
+    .then((patient) => res.json(patient))
     .catch(() => res.status(500).json({ message: "server error" }));
 });
 
@@ -282,55 +404,54 @@ app.get("/api/chats/:id", (req, res) => {
     .catch(() => res.status(500).json({ message: "server error" }));
 });
 
-app.post("/api/chats", (req, res) => {
+app.post("/api/chats", async (req, res) => {
   const { doctorId, name, specialty } = req.body || {};
   if (!doctorId || !name) {
     return res.status(400).json({ message: "doctorId and name are required" });
   }
 
-  prisma.chatThread
-    .findFirst({
+  try {
+    const existing = await prisma.chatThread.findFirst({
       where: {
         OR: [{ doctorId: Number(doctorId) }, { name }],
       },
       include: { messages: { orderBy: { createdAt: "asc" } } },
-    })
-    .then((existing) => {
-      if (existing) {
-        return res.json({
-          id: existing.id,
-          doctorId: existing.doctorId,
-          name: existing.name,
-          specialty: existing.specialty,
-          lastMessage: existing.lastMessage,
-          messages: existing.messages.map((msg) => ({ from: msg.from, text: msg.text })),
-          slots: JSON.parse(existing.slotsJson || "[]"),
-        });
-      }
+    });
 
-      return prisma.chatThread.create({
-        data: {
-          doctorId: Number(doctorId),
-          name,
-          specialty: specialty || "",
-          lastMessage: "",
-          slotsJson: JSON.stringify(["Demain 10:00", "Demain 15:00", "Vendredi 09:30"]),
-        },
+    if (existing) {
+      return res.json({
+        id: existing.id,
+        doctorId: existing.doctorId,
+        name: existing.name,
+        specialty: existing.specialty,
+        lastMessage: existing.lastMessage,
+        messages: existing.messages.map((msg) => ({ from: msg.from, text: msg.text })),
+        slots: JSON.parse(existing.slotsJson || "[]"),
       });
-    })
-    .then((created) => {
-      if (!created || created.messages) return;
-      res.status(201).json({
-        id: created.id,
-        doctorId: created.doctorId,
-        name: created.name,
-        specialty: created.specialty,
-        lastMessage: created.lastMessage,
-        messages: [],
-        slots: JSON.parse(created.slotsJson || "[]"),
-      });
-    })
-    .catch(() => res.status(500).json({ message: "server error" }));
+    }
+
+    const created = await prisma.chatThread.create({
+      data: {
+        doctorId: Number(doctorId),
+        name,
+        specialty: specialty || "",
+        lastMessage: "",
+        slotsJson: JSON.stringify(["Demain 10:00", "Demain 15:00", "Vendredi 09:30"]),
+      },
+    });
+
+    return res.status(201).json({
+      id: created.id,
+      doctorId: created.doctorId,
+      name: created.name,
+      specialty: created.specialty,
+      lastMessage: created.lastMessage,
+      messages: [],
+      slots: JSON.parse(created.slotsJson || "[]"),
+    });
+  } catch {
+    return res.status(500).json({ message: "server error" });
+  }
 });
 
 app.post("/api/chats/:id/messages", (req, res) => {
@@ -374,55 +495,102 @@ app.post("/api/chats/:id/messages", (req, res) => {
 
 app.get("/api/appointments", (req, res) => {
   const doctorId = req.query.doctorId ? Number(req.query.doctorId) : null;
+  const patientKey = req.query.patientKey ? String(req.query.patientKey) : null;
   prisma.appointment
     .findMany({
-      where: doctorId ? { doctorId } : undefined,
+      where: doctorId
+        ? { doctorId }
+        : patientKey
+          ? { patientKey }
+          : undefined,
       orderBy: { createdAt: "desc" },
     })
     .then((appointments) => res.json(appointments))
     .catch(() => res.status(500).json({ message: "server error" }));
 });
 
-app.post("/api/appointments", (req, res) => {
-  const { chatId, doctorId, slot } = req.body || {};
-  if (!chatId || !doctorId || !slot) {
-    return res.status(400).json({ message: "chatId, doctorId and slot are required" });
+app.post("/api/appointments", async (req, res) => {
+  const { chatId, doctorId, slot, paymentMethod, patientKey, patientName } = req.body || {};
+  if (!doctorId || !slot) {
+    return res.status(400).json({ message: "doctorId and slot are required" });
   }
 
-  prisma.doctor
-    .findUnique({ where: { id: Number(doctorId) } })
-    .then((doctor) => {
-      if (!doctor) {
-        return res.status(404).json({ message: "Doctor not found" });
-      }
-      return prisma.appointment.create({
-        data: {
-          chatId: Number(chatId),
-          doctorId: Number(doctorId),
-          doctorName: doctor.name,
-          specialty: doctor.specialty,
-          slot,
-          status: "pending",
-        },
-      });
-    })
-    .then((appointment) => {
-      if (appointment) {
-        res.status(201).json(appointment);
-      }
-    })
-    .catch(() => res.status(500).json({ message: "server error" }));
+  try {
+    const doctor = await prisma.doctor.findUnique({ where: { id: Number(doctorId) } });
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+
+    const existing = await prisma.appointment.findFirst({
+      where: { doctorId: Number(doctorId), slot },
+    });
+    if (existing) {
+      return res.status(409).json({ message: "Slot already booked" });
+    }
+
+    const appointment = await prisma.appointment.create({
+      data: {
+        chatId: chatId ? Number(chatId) : 0,
+        doctorId: Number(doctorId),
+        doctorName: doctor.name,
+        specialty: doctor.specialty,
+        slot,
+        status: "pending",
+        paymentMethod: paymentMethod || "cash",
+        paymentStatus: paymentMethod === "card" ? "pending" : "unpaid",
+        patientKey: patientKey || null,
+        patientName: patientName || null,
+      },
+    });
+
+    return res.status(201).json(appointment);
+  } catch {
+    return res.status(500).json({ message: "server error" });
+  }
 });
 
 app.put("/api/appointments/:id", (req, res) => {
   const id = Number(req.params.id);
-  const { status } = req.body || {};
-  if (!status) {
-    return res.status(400).json({ message: "status is required" });
+  const { status, slot, paymentStatus } = req.body || {};
+  if (!status && !slot && !paymentStatus) {
+    return res.status(400).json({ message: "status or slot or paymentStatus is required" });
   }
+
   prisma.appointment
-    .update({ where: { id }, data: { status } })
-    .then((updated) => res.json(updated))
+    .findUnique({ where: { id } })
+    .then((appointment) => {
+      if (!appointment) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+      if (slot) {
+        return prisma.appointment
+          .findFirst({
+            where: { doctorId: appointment.doctorId, slot },
+          })
+          .then((existing) => {
+            if (existing && existing.id !== id) {
+              return res.status(409).json({ message: "Slot already booked" });
+            }
+            return prisma.appointment.update({
+              where: { id },
+              data: {
+                status: status || appointment.status,
+                slot,
+                paymentStatus: paymentStatus || appointment.paymentStatus,
+              },
+            });
+          });
+      }
+      return prisma.appointment.update({
+        where: { id },
+        data: { status: status || appointment.status, paymentStatus: paymentStatus },
+      });
+    })
+    .then((updated) => {
+      if (updated && updated.id) {
+        res.json(updated);
+      }
+    })
     .catch(() => res.status(500).json({ message: "server error" }));
 });
 
@@ -452,6 +620,98 @@ app.put("/api/chats/:id/slots", (req, res) => {
       });
     })
     .catch(() => res.status(500).json({ message: "server error" }));
+});
+
+app.post("/api/payments/checkout", async (req, res) => {
+  const { doctorId, slot, chatId } = req.body || {};
+  if (!doctorId || !slot) {
+    return res.status(400).json({ message: "doctorId and slot are required" });
+  }
+  if (!stripe) {
+    return res.status(500).json({ message: "STRIPE_SECRET_KEY is missing" });
+  }
+
+  try {
+    const doctor = await prisma.doctor.findUnique({ where: { id: Number(doctorId) } });
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+
+    const appointment = await prisma.appointment.create({
+      data: {
+        chatId: chatId ? Number(chatId) : 0,
+        doctorId: Number(doctorId),
+        doctorName: doctor.name,
+        specialty: doctor.specialty,
+        slot,
+        status: "pending_payment",
+        paymentMethod: "card",
+        paymentStatus: "pending",
+      },
+    });
+
+    const unitAmount = getPriceFromPlan(doctor.plan) * 100;
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: STRIPE_CURRENCY,
+            product_data: {
+              name: `Consultation - ${doctor.name}`,
+            },
+            unit_amount: unitAmount,
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${FRONTEND_URL}/doctors?payment=success&appointmentId=${appointment.id}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${FRONTEND_URL}/doctors?payment=cancel`,
+      metadata: {
+        appointmentId: String(appointment.id),
+        doctorId: String(doctorId),
+      },
+    });
+
+    await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { checkoutSessionId: session.id },
+    });
+
+    return res.json({ url: session.url, appointmentId: appointment.id });
+  } catch (error) {
+    console.error("Stripe checkout error:", error?.message || error);
+    if (error?.raw) {
+      console.error("Stripe raw error:", error.raw);
+    }
+    return res.status(500).json({ message: "Stripe checkout failed" });
+  }
+});
+
+app.post("/api/payments/confirm", async (req, res) => {
+  const { appointmentId, sessionId } = req.body || {};
+  if (!appointmentId || !sessionId) {
+    return res.status(400).json({ message: "appointmentId and sessionId are required" });
+  }
+  if (!stripe) {
+    return res.status(500).json({ message: "STRIPE_SECRET_KEY is missing" });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== "paid") {
+      return res.status(400).json({ message: "Payment not completed" });
+    }
+    const updated = await prisma.appointment.update({
+      where: { id: Number(appointmentId) },
+      data: { paymentStatus: "paid", status: "confirmed" },
+    });
+    return res.json(updated);
+  } catch (error) {
+    console.error("Stripe confirm error:", error);
+    return res.status(500).json({ message: "Payment confirmation failed" });
+  }
 });
 
 function formatDoctorsForPrompt(doctorsList) {
@@ -610,5 +870,5 @@ ensureSeedData()
   })
   .catch((error) => {
     console.error("Failed to seed database:", error);
-    process.exit(2);
+    process.exit(1);
   });

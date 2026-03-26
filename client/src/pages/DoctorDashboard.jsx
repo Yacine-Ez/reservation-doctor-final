@@ -16,6 +16,7 @@ function DoctorDashboardView({ onLogout, ownerKey }) {
   const [appointments, setAppointments] = useState([]);
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const {
     myDoctorCard,
     activePanel,
@@ -70,8 +71,13 @@ function DoctorDashboardView({ onLogout, ownerKey }) {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-7xl px-6 pb-10 pt-8">
-        <DoctorDashboardHeader myDoctorCard={myDoctorCard} patientsCount={patients.length} />
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 pb-10 pt-8">
+        <DoctorDashboardHeader
+          myDoctorCard={myDoctorCard}
+          patientsCount={patients.length}
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+        />
 
         <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
           <DoctorDashboardSidebar
@@ -85,6 +91,7 @@ function DoctorDashboardView({ onLogout, ownerKey }) {
             onShowOnboarding={handleShowOnboarding}
             onGoHome={() => navigate("/")}
             onLogout={onLogout}
+            isOpen={isSidebarOpen}
           />
 
           <section>

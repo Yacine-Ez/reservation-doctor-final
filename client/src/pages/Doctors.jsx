@@ -5,9 +5,13 @@ import {
   createAppointment,
   createChat,
   getAppointments,
+  getAppointmentsForPatient,
   getChats,
   getDoctors,
   sendChatMessage,
+  updateAppointment,
+  getPatientProfile,
+  upsertPatientProfile,
 } from "../services/api";
 import Navbar from "../components/Navbar";
 import DoctorCard from "../components/DoctorCard";
@@ -28,7 +32,17 @@ function DoctorsView({ onLogout }) {
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [patientProfile, setPatientProfile] = useState(null);
-  const [profileDraft, setProfileDraft] = useState({ firstName: "", lastName: "", location: "" });
+  const [profileDraft, setProfileDraft] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    location: "",
+    allergies: "",
+    chronicConditions: "",
+    medications: "",
+    notes: "",
+  });
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadThreads, setUnreadThreads] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -55,15 +69,39 @@ function DoctorsView({ onLogout }) {
     setActiveView("chat");
   };
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     const next = {
       firstName: profileDraft.firstName.trim(),
       lastName: profileDraft.lastName.trim(),
+      email: profileDraft.email.trim(),
+      phone: profileDraft.phone.trim(),
       location: profileDraft.location.trim(),
+      allergies: profileDraft.allergies.trim(),
+      chronicConditions: profileDraft.chronicConditions.trim(),
+      medications: profileDraft.medications.trim(),
+      notes: profileDraft.notes.trim(),
     };
-    if (!next.firstName || !next.lastName || !next.location) return;
+    if (!next.firstName || !next.lastName || !next.location || !next.email) return;
     localStorage.setItem("reservation-patient-profile", JSON.stringify(next));
+    localStorage.setItem(
+      "reservation-patient-name",
+      `${next.firstName} ${next.lastName}`.trim()
+    );
     setPatientProfile(next);
+    const patientKey = localStorage.getItem("reservation-patient-key");
+    if (patientKey) {
+      await upsertPatientProfile({
+        patientKey,
+        name: `${next.firstName} ${next.lastName}`.trim(),
+        email: next.email,
+        phone: next.phone,
+        location: next.location,
+        allergies: next.allergies,
+        chronicConditions: next.chronicConditions,
+        medications: next.medications,
+        notes: next.notes,
+      });
+    }
     setActiveView("doctors");
   };
 
@@ -84,6 +122,35 @@ function DoctorsView({ onLogout }) {
 
   useEffect(() => {
     setActiveView("doctors");
+    let patientKey = localStorage.getItem("reservation-patient-key");
+    if (!patientKey) {
+      patientKey = `patient-${Date.now()}`;
+      localStorage.setItem("reservation-patient-key", patientKey);
+    }
+
+    getPatientProfile(patientKey)
+      .then((res) => {
+        if (res.data) {
+          const fullName = res.data.name || "";
+          const [firstName, ...rest] = fullName.split(" ");
+          const fromServer = {
+            firstName: firstName || "",
+            lastName: rest.join(" "),
+            email: res.data.email || "",
+            phone: res.data.phone || "",
+            location: res.data.location || "",
+            allergies: res.data.allergies || "",
+            chronicConditions: res.data.chronicConditions || "",
+            medications: res.data.medications || "",
+            notes: res.data.notes || "",
+          };
+          setPatientProfile(fromServer);
+          setProfileDraft(fromServer);
+          localStorage.setItem("reservation-patient-profile", JSON.stringify(fromServer));
+        }
+      })
+      .catch(() => null);
+
     const storedProfile = localStorage.getItem("reservation-patient-profile");
     if (storedProfile) {
       try {
@@ -109,7 +176,7 @@ function DoctorsView({ onLogout }) {
       .finally(() => {
         chatsTimer = setTimeout(() => setLoadingChats(false), 2000);
       });
-    getAppointments()
+    getAppointmentsForPatient(patientKey)
       .then((res) => setAppointments(res.data))
       .catch(() => null)
       .finally(() => {
@@ -133,15 +200,15 @@ function DoctorsView({ onLogout }) {
   useEffect(() => {
     if (!patientLocation) {
       setFiltered(doctors);
-      return;
+    } else {
+      const sorted = [...doctors].sort((a, b) => {
+        const aInCity = a.location?.toLowerCase().includes(patientLocation.toLowerCase());
+        const bInCity = b.location?.toLowerCase().includes(patientLocation.toLowerCase());
+        if (aInCity === bInCity) return 0;
+        return aInCity ? -1 : 1;
+      });
+      setFiltered(sorted);
     }
-    const sorted = [...doctors].sort((a, b) => {
-      const aInCity = a.location?.toLowerCase().includes(patientLocation.toLowerCase());
-      const bInCity = b.location?.toLowerCase().includes(patientLocation.toLowerCase());
-      if (aInCity === bInCity) return 0;
-      return aInCity ? -1 : 1;
-    });
-    setFiltered(sorted);
   }, [doctors, patientLocation]);
 
   useEffect(() => {
@@ -208,9 +275,21 @@ function DoctorsView({ onLogout }) {
   }, [activeView, activeChat?.id, activeChat?.messages?.length]);
 
   const handleSearch = (value) => {
-    const result = doctors.filter((doc) =>
-      doc.specialty.toLowerCase().includes(value.toLowerCase())
-    );
+    const query = value.toLowerCase().trim();
+    if (!query) {
+      setFiltered(doctors);
+      setRecommendedIds([]);
+      setAiNote("");
+      return;
+    }
+
+    const result = doctors.filter((doc) => {
+      const nameOk = doc.name?.toLowerCase().includes(query);
+      const specialtyOk = doc.specialty?.toLowerCase().includes(query);
+      const priceOk = String(doc.priceValue || "").includes(query);
+      return nameOk || specialtyOk || priceOk;
+    });
+
     if (patientLocation) {
       const sorted = [...result].sort((a, b) => {
         const aInCity = a.location?.toLowerCase().includes(patientLocation.toLowerCase());
@@ -222,6 +301,7 @@ function DoctorsView({ onLogout }) {
     } else {
       setFiltered(result);
     }
+
     setRecommendedIds([]);
     setAiNote("");
   };
@@ -246,6 +326,70 @@ function DoctorsView({ onLogout }) {
     // Stay in AI chat; user can switch views manually.
   };
 
+  const getMeetingLink = (appointment) =>
+    `https://meet.jit.si/ReservationDoctor-${appointment.id}`;
+
+  const handlePrintMedicalRecord = () => {
+    if (!patientProfile) return;
+    const win = window.open("", "_blank", "width=800,height=1000");
+    if (!win) return;
+    const now = new Date().toLocaleString("fr-FR");
+    win.document.write(`
+      <html>
+        <head>
+          <title>Dossier medical</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+            .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+            h1 { font-size: 20px; margin-bottom: 12px; }
+            .row { margin: 6px 0; }
+            .label { font-weight: 700; }
+            .muted { color: #64748b; font-size: 12px; margin-top: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>Dossier medical</h1>
+            <div class="row"><span class="label">Nom:</span> ${patientProfile.firstName} ${patientProfile.lastName}</div>
+            <div class="row"><span class="label">Email:</span> ${patientProfile.email || "-"}</div>
+            <div class="row"><span class="label">Telephone:</span> ${patientProfile.phone || "-"}</div>
+            <div class="row"><span class="label">Ville:</span> ${patientProfile.location || "-"}</div>
+            <div class="row"><span class="label">Allergies:</span> ${patientProfile.allergies || "-"}</div>
+            <div class="row"><span class="label">Maladies chroniques:</span> ${patientProfile.chronicConditions || "-"}</div>
+            <div class="row"><span class="label">Medicaments:</span> ${patientProfile.medications || "-"}</div>
+            <div class="row"><span class="label">Notes:</span> ${patientProfile.notes || "-"}</div>
+            <div class="muted">Genere le ${now}</div>
+          </div>
+          <script>window.print();</script>
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
+  const handleExportAppointments = () => {
+    if (!appointments.length) return;
+    const headers = ["ID", "Medecin", "Specialite", "Creneau", "Statut", "Paiement"];
+    const rows = appointments.map((appt) => [
+      appt.id,
+      appt.doctorName,
+      appt.specialty,
+      appt.slot,
+      appt.status || "",
+      `${appt.paymentMethod || ""} ${appt.paymentStatus || ""}`.trim(),
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "historique-rdv.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="bg-gray-100 min-h-screen">
       <Navbar
@@ -254,17 +398,17 @@ function DoctorsView({ onLogout }) {
         onActionClick={onLogout}
       />
 
-      <div className="px-6 pt-36 pb-10">
+      <div className="px-4 sm:px-6 pt-32 sm:pt-36 pb-10">
         <h1 className="text-3xl font-bold text-slate-900">Find Your Doctor</h1>
         <p className="mt-2 text-sm text-slate-500">
           L&apos;assistant IA peut filtrer les cartes selon vos besoins.
         </p>
       </div>
 
-      <div className="flex gap-6 px-6 pb-10">
+      <div className="flex flex-col gap-6 px-4 sm:px-6 pb-10 md:flex-row">
         <aside
-          className={`flex flex-col items-center gap-5 rounded-3xl border border-slate-200 bg-white/80 py-6 shadow-sm transition-all ${
-            isSidebarExpanded ? "w-52" : "w-[72px]"
+          className={`flex w-full items-center gap-4 overflow-x-auto rounded-3xl border border-slate-200 bg-white/80 px-4 py-4 shadow-sm transition-all md:w-auto md:flex-col md:items-center md:gap-5 md:py-6 ${
+            isSidebarExpanded ? "md:w-52" : "md:w-[72px]"
           }`}
         >
           <button
@@ -289,7 +433,7 @@ function DoctorsView({ onLogout }) {
             <Home size={20} />
           </button>
           {isSidebarExpanded && (
-            <span className="text-xs font-semibold text-slate-500">Home</span>
+            <span className="hidden text-xs font-semibold text-slate-500 md:block">Home</span>
           )}
 
           <button
@@ -305,7 +449,9 @@ function DoctorsView({ onLogout }) {
             <Calendar size={20} />
           </button>
           {isSidebarExpanded && (
-            <span className="text-xs font-semibold text-slate-500">My Appointments</span>
+            <span className="hidden text-xs font-semibold text-slate-500 md:block">
+              My Appointments
+            </span>
           )}
 
           <button
@@ -321,7 +467,7 @@ function DoctorsView({ onLogout }) {
             <Bot size={20} />
           </button>
           {isSidebarExpanded && (
-            <span className="text-xs font-semibold text-slate-500">AI</span>
+            <span className="hidden text-xs font-semibold text-slate-500 md:block">AI</span>
           )}
 
           <button
@@ -336,7 +482,9 @@ function DoctorsView({ onLogout }) {
           >
             <MessageCircle size={20} />
           </button>
-          {isSidebarExpanded && <span className="text-xs font-semibold text-slate-500">Chat</span>}
+          {isSidebarExpanded && (
+            <span className="hidden text-xs font-semibold text-slate-500 md:block">Chat</span>
+          )}
 
           <button
             type="button"
@@ -358,7 +506,9 @@ function DoctorsView({ onLogout }) {
             </div>
           </button>
           {isSidebarExpanded && (
-            <span className="text-xs font-semibold text-slate-500">Notifications</span>
+            <span className="hidden text-xs font-semibold text-slate-500 md:block">
+              Notifications
+            </span>
           )}
 
           <button
@@ -373,7 +523,9 @@ function DoctorsView({ onLogout }) {
           >
             <User size={20} />
           </button>
-          {isSidebarExpanded && <span className="text-xs font-semibold text-slate-500">Profile</span>}
+          {isSidebarExpanded && (
+            <span className="hidden text-xs font-semibold text-slate-500 md:block">Profile</span>
+          )}
         </aside>
 
         <section className="min-w-0 flex-1 space-y-6">
@@ -401,6 +553,24 @@ function DoctorsView({ onLogout }) {
                   value={profileDraft.lastName}
                   onChange={(event) =>
                     setProfileDraft((prev) => ({ ...prev, lastName: event.target.value }))
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={profileDraft.email}
+                  onChange={(event) =>
+                    setProfileDraft((prev) => ({ ...prev, email: event.target.value }))
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                />
+                <input
+                  type="text"
+                  placeholder="Telephone"
+                  value={profileDraft.phone}
+                  onChange={(event) =>
+                    setProfileDraft((prev) => ({ ...prev, phone: event.target.value }))
                   }
                   className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
                 />
@@ -447,6 +617,24 @@ function DoctorsView({ onLogout }) {
                   className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
                 />
                 <input
+                  type="email"
+                  placeholder="Email"
+                  value={profileDraft.email}
+                  onChange={(event) =>
+                    setProfileDraft((prev) => ({ ...prev, email: event.target.value }))
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                />
+                <input
+                  type="text"
+                  placeholder="Telephone"
+                  value={profileDraft.phone}
+                  onChange={(event) =>
+                    setProfileDraft((prev) => ({ ...prev, phone: event.target.value }))
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                />
+                <input
                   type="text"
                   placeholder="Ville"
                   value={profileDraft.location}
@@ -456,12 +644,60 @@ function DoctorsView({ onLogout }) {
                   className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 md:col-span-2"
                 />
               </div>
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <textarea
+                  placeholder="Allergies"
+                  value={profileDraft.allergies}
+                  onChange={(event) =>
+                    setProfileDraft((prev) => ({ ...prev, allergies: event.target.value }))
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 md:col-span-2"
+                  rows={2}
+                />
+                <textarea
+                  placeholder="Maladies chroniques"
+                  value={profileDraft.chronicConditions}
+                  onChange={(event) =>
+                    setProfileDraft((prev) => ({
+                      ...prev,
+                      chronicConditions: event.target.value,
+                    }))
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 md:col-span-2"
+                  rows={2}
+                />
+                <textarea
+                  placeholder="Medicaments"
+                  value={profileDraft.medications}
+                  onChange={(event) =>
+                    setProfileDraft((prev) => ({ ...prev, medications: event.target.value }))
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 md:col-span-2"
+                  rows={2}
+                />
+                <textarea
+                  placeholder="Notes medicales"
+                  value={profileDraft.notes}
+                  onChange={(event) =>
+                    setProfileDraft((prev) => ({ ...prev, notes: event.target.value }))
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 md:col-span-2"
+                  rows={3}
+                />
+              </div>
               <button
                 type="button"
                 onClick={saveProfile}
                 className="mt-6 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
               >
                 Mettre a jour
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintMedicalRecord}
+                className="mt-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 hover:border-slate-900"
+              >
+                Imprimer dossier medical
               </button>
             </div>
           )}
@@ -687,7 +923,16 @@ function DoctorsView({ onLogout }) {
 
           {activeView === "appointments" && (
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-              <h2 className="text-2xl font-semibold text-slate-900">Mes rendez-vous</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-semibold text-slate-900">Mes rendez-vous</h2>
+                <button
+                  type="button"
+                  onClick={handleExportAppointments}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:border-slate-900"
+                >
+                  Export historique
+                </button>
+              </div>
               {loadingAppointments ? (
                 <div className="mt-4 space-y-3">
                   <Skeleton height={48} radius="xl" />
@@ -707,6 +952,107 @@ function DoctorsView({ onLogout }) {
                       <div className="font-semibold">{appt.doctorName}</div>
                       <div className="text-xs text-slate-500">{appt.specialty}</div>
                       <div className="mt-2 text-xs text-slate-600">{appt.slot}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Paiement: {appt.paymentMethod || "cash"}{" "}
+                        {appt.paymentStatus ? `(${appt.paymentStatus})` : ""}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await updateAppointment(appt.id, { status: "cancelled" });
+                            setAppointments((prev) =>
+                              prev.map((item) =>
+                                item.id === appt.id ? { ...item, status: "cancelled" } : item
+                              )
+                            );
+                          }}
+                          className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:border-rose-400"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const nextDate = window.prompt("Nouvelle date (YYYY-MM-DD):", "");
+                            const nextTime = window.prompt("Nouvel horaire (HH:MM):", "");
+                            if (!nextDate || !nextTime) return;
+                            const nextSlot = `${nextDate} ${nextTime}`;
+                            try {
+                              await updateAppointment(appt.id, { slot: nextSlot, status: "pending" });
+                              setAppointments((prev) =>
+                                prev.map((item) =>
+                                  item.id === appt.id ? { ...item, slot: nextSlot } : item
+                                )
+                              );
+                            } catch (err) {
+                              window.alert(
+                                err?.response?.status === 409
+                                  ? "Ce creneau est deja reserve."
+                                  : "Erreur de reprogrammation."
+                              );
+                            }
+                          }}
+                          className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-900"
+                        >
+                          Reprogrammer
+                        </button>
+                        {appt.status && (
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                            {appt.status}
+                          </span>
+                        )}
+                        <a
+                          href={getMeetingLink(appt)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-900"
+                        >
+                          Video call
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const win = window.open("", "_blank", "width=720,height=900");
+                            if (!win) return;
+                            const now = new Date().toLocaleString("fr-FR");
+                            const paymentLabel = appt.paymentMethod || "cash";
+                            win.document.write(`
+                              <html>
+                                <head>
+                                  <title>Recu rendez-vous</title>
+                                  <style>
+                                    body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+                                    .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+                                    h1 { font-size: 20px; margin-bottom: 12px; }
+                                    .row { margin: 6px 0; }
+                                    .label { font-weight: 700; }
+                                    .muted { color: #64748b; font-size: 12px; margin-top: 12px; }
+                                    .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #e2e8f0; font-size: 12px; }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="card">
+                                    <h1>Recu de rendez-vous</h1>
+                                    <div class="row"><span class="label">ID:</span> ${appt.id}</div>
+                                    <div class="row"><span class="label">Medecin:</span> ${appt.doctorName}</div>
+                                    <div class="row"><span class="label">Specialite:</span> ${appt.specialty}</div>
+                                    <div class="row"><span class="label">Creneau:</span> ${appt.slot}</div>
+                                    <div class="row"><span class="label">Paiement:</span> ${paymentLabel} ${appt.paymentStatus ? `(${appt.paymentStatus})` : ""}</div>
+                                    <div class="row"><span class="label">Statut:</span> <span class="badge">${appt.status || "pending"}</span></div>
+                                    <div class="muted">Genere le ${now}</div>
+                                  </div>
+                                  <script>window.print();</script>
+                                </body>
+                              </html>
+                            `);
+                            win.document.close();
+                          }}
+                          className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-900"
+                        >
+                          Imprimer recu
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

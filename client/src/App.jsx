@@ -4,6 +4,7 @@ import Login from "./pages/Login";
 import DoctorDashboard from "./pages/DoctorDashboard";
 import Doctors from "./pages/Doctors";
 import DoctorDetails from "./pages/DoctorDetails";
+import AdminDashboard from "./pages/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -43,6 +44,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/admin" element={<AdminDashboard />} />
     </Routes>
   );
 }

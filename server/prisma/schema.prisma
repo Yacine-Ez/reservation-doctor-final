@@ -26,9 +26,16 @@ model Doctor {
 }
 
 model Patient {
-  id     Int    @id @default(autoincrement())
-  name   String
-  email  String
+  id        Int    @id @default(autoincrement())
+  patientKey String? @unique
+  name      String
+  email     String
+  phone     String?
+  location  String?
+  allergies String?
+  chronicConditions String?
+  medications String?
+  notes     String?
 }
 
 model ChatThread {
@@ -64,5 +71,10 @@ model Appointment {
   specialty  String
   slot       String
   status     String
+  paymentMethod String?
+  paymentStatus String?
+  checkoutSessionId String?
+  patientKey String?
+  patientName String?
   createdAt  DateTime @default(now())
 }

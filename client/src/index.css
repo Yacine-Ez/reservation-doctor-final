@@ -1,2 +1,70 @@
 @import "tailwindcss";
 
+:root {
+  --input-glow: rgba(34, 211, 238, 0.35);
+  --input-glow-strong: rgba(15, 118, 110, 0.35);
+  --input-border: rgba(148, 163, 184, 0.6);
+  --input-border-focus: rgba(14, 116, 144, 0.8);
+}
+
+input,
+select,
+textarea {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--input-border-focus);
+  box-shadow:
+    0 0 0 3px var(--input-glow),
+    0 10px 25px -15px var(--input-glow-strong);
+  animation: inputPulse 1.6s ease-in-out infinite;
+}
+
+input::placeholder,
+textarea::placeholder {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+input:focus::placeholder,
+textarea:focus::placeholder {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@keyframes inputPulse {
+  0% {
+    box-shadow:
+      0 0 0 3px rgba(34, 211, 238, 0.2),
+      0 10px 25px -15px rgba(15, 118, 110, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(34, 211, 238, 0.35),
+      0 12px 28px -14px rgba(15, 118, 110, 0.4);
+  }
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(34, 211, 238, 0.2),
+      0 10px 25px -15px rgba(15, 118, 110, 0.25);
+  }
+}
+.btn-glow {
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  box-shadow: 0 6px 18px -12px rgba(8, 145, 178, 0.7);
+}
+
+.btn-glow:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -12px rgba(8, 145, 178, 0.8);
+}
+
+.btn-glow:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 14px -12px rgba(8, 145, 178, 0.6);
+}
+

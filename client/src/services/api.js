@@ -19,9 +19,21 @@ export const getChats = () => API.get("/chats");
 export const getChatById = (id) => API.get(`/chats/${id}`);
 export const createChat = (payload) => API.post("/chats", payload);
 export const sendChatMessage = (id, payload) => API.post(`/chats/${id}/messages`, payload);
+export const getPatients = () => API.get("/patients");
 export const getAppointments = (doctorId) =>
   API.get("/appointments", { params: doctorId ? { doctorId } : {} });
+export const getAppointmentsForPatient = (patientKey) =>
+  API.get("/appointments", { params: patientKey ? { patientKey } : {} });
 export const createAppointment = (payload) => API.post("/appointments", payload);
+export const createCheckoutSession = (payload) => API.post("/payments/checkout", payload);
+export const confirmCheckoutSession = (payload) => API.post("/payments/confirm", payload);
+export const getPatientProfile = (patientKey) =>
+  API.get("/patients/profile", { params: { patientKey } });
+export const upsertPatientProfile = (payload) => API.put("/patients/profile", payload);
 export const updateChatSlots = (id, slots) => API.put(`/chats/${id}/slots`, { slots });
 export const updateAppointmentStatus = (id, status) =>
   API.put(`/appointments/${id}`, { status });
+export const updateAppointment = (id, payload) =>
+  API.put(`/appointments/${id}`, payload);
+export const getDoctorAvailability = (doctorId, date) =>
+  API.get(`/doctors/${doctorId}/availability`, { params: { date } });

@@ -11,52 +11,61 @@ function DoctorDashboardSidebar({
   onShowOnboarding,
   onGoHome,
   onLogout,
+  isOpen,
 }) {
   return (
-    <aside className="sticky top-6 min-h-[78vh] rounded-3xl border border-cyan-100 bg-white p-4 shadow-sm lg:-ml-4">
-      <div className="mb-4 rounded-2xl bg-slate-50 p-3">
-        <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Doctor Space</p>
-        <p className="mt-1 font-semibold text-slate-900">{myDoctorCard?.name || "Complete your profile"}</p>
-      </div>
+    <aside
+      className={`relative rounded-3xl border border-cyan-100 bg-white p-4 shadow-sm transition-all lg:sticky lg:top-6 lg:min-h-[78vh] lg:-ml-4 ${
+        isOpen ? "w-full lg:w-64" : "hidden lg:block lg:w-20"
+      }`}
+    >
+      {isOpen && (
+        <div className="mb-4 rounded-2xl bg-slate-50 p-3">
+          <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Doctor Space</p>
+          <p className="mt-1 font-semibold text-slate-900">
+            {myDoctorCard?.name || "Complete your profile"}
+          </p>
+        </div>
+      )}
 
-      <div className="space-y-2">
+      <div className="flex gap-2 overflow-x-auto lg:flex-col lg:space-y-2 lg:overflow-visible">
         <button
           type="button"
           onClick={onShowProfile}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-700"
+          className="whitespace-nowrap rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-700 lg:w-full"
         >
-          Profile
+          {isOpen ? "Profile" : "P"}
         </button>
         <button
           type="button"
           onClick={onShowChat}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-700"
+          className="whitespace-nowrap rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-700 lg:w-full"
         >
-          Chat / Patients
+          {isOpen ? "Chat / Patients" : "C"}
         </button>
         <button
           type="button"
           onClick={onShowOnboarding}
-          className="w-full rounded-xl bg-cyan-600 px-3 py-2 text-left text-sm font-semibold text-white"
+          className="whitespace-nowrap rounded-xl bg-cyan-600 px-3 py-2 text-left text-sm font-semibold text-white lg:w-full"
         >
-          {myDoctorCardId ? "Modify My Card" : "Create My Card"}
+          {isOpen ? (myDoctorCardId ? "Modify My Card" : "Create My Card") : "M"}
         </button>
       </div>
 
-      <div className="mt-6 space-y-2 border-t border-slate-200 pt-4">
+      <div className="mt-6 flex gap-2 overflow-x-auto border-t border-slate-200 pt-4 lg:flex-col lg:space-y-2 lg:overflow-visible">
         <button
           type="button"
           onClick={onGoHome}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-700"
+          className="whitespace-nowrap rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-700 lg:w-full"
         >
-          Home
+          {isOpen ? "Home" : "H"}
         </button>
         <button
           type="button"
           onClick={onLogout}
-          className="w-full rounded-xl bg-slate-900 px-3 py-2 text-left text-sm font-semibold text-white"
+          className="whitespace-nowrap rounded-xl bg-slate-900 px-3 py-2 text-left text-sm font-semibold text-white lg:w-full"
         >
-          Logout
+          {isOpen ? "Logout" : "L"}
         </button>
       </div>
 
@@ -66,7 +75,7 @@ function DoctorDashboardSidebar({
           onClick={onShowAppointments}
           className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"
         >
-          Rendez-vous
+          {isOpen ? "Rendez-vous" : "RDV"}
           <span className="text-[10px]">{loadingAppointments ? "…" : appointments?.length || 0}</span>
         </button>
         {loadingAppointments && (

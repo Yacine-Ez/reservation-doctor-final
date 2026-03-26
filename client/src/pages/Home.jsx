@@ -12,7 +12,7 @@ function Home() {
         actionLabel="Login"
         onActionClick={() => navigate("/login")}
       />
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col items-center justify-center px-6 pt-36 text-center">
+      <div className="mx-auto flex min-h-screen max-w-5xl flex-col items-center justify-center px-4 sm:px-6 pt-32 sm:pt-36 text-center">
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
           Reservation Doctor
         </p>
@@ -40,10 +40,10 @@ function Home() {
         <p className="mt-4 max-w-2xl text-slate-200">
           Connectez-vous en tant que patient pour chercher un specialiste, ou en tant que doctor pour gerer vos patients.
         </p>
-        <div className="mt-8 flex gap-4">
+        <div className="mt-8 flex w-full flex-col gap-4 sm:w-auto sm:flex-row">
           <button
             onClick={() => navigate("/login")}
-            className="rounded-xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 shadow-md shadow-cyan-500/40 transition hover:bg-cyan-400"
+            className="w-full rounded-xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 shadow-md shadow-cyan-500/40 transition hover:bg-cyan-400 sm:w-auto"
           >
             Commencer
           </button>

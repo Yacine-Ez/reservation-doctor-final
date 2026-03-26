@@ -2,6 +2,8 @@ import { Skeleton } from "@mantine/core";
 import { updateAppointmentStatus } from "../../services/api";
 
 function DoctorAppointmentsPanel({ appointments, loadingAppointments, onAppointmentsChange }) {
+  const getMeetingLink = (appointment) =>
+    `https://meet.jit.si/ReservationDoctor-${appointment.id}`;
   const handleStatus = async (appointment, status) => {
     const updated = await updateAppointmentStatus(appointment.id, status);
     onAppointmentsChange((prev) =>
@@ -37,7 +39,7 @@ function DoctorAppointmentsPanel({ appointments, loadingAppointments, onAppointm
                   {appt.status}
                 </span>
               </div>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => handleStatus(appt, "confirmed")}
@@ -52,6 +54,14 @@ function DoctorAppointmentsPanel({ appointments, loadingAppointments, onAppointm
                 >
                   Annuler
                 </button>
+                <a
+                  href={getMeetingLink(appt)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-900"
+                >
+                  Video call
+                </a>
               </div>
             </div>
           ))}

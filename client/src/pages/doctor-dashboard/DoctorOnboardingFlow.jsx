@@ -78,6 +78,15 @@ function DoctorOnboardingFlow({
             className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-cyan-500"
             placeholder="Casablanca, Morocco"
           />
+          <input
+            type="number"
+            name="experienceYears"
+            min="0"
+            value={formData.experienceYears}
+            onChange={onInputChange}
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-cyan-500"
+            placeholder="Experience (annees)"
+          />
         </div>
       </Step>
 
@@ -136,6 +145,10 @@ function DoctorOnboardingFlow({
           </p>
           <p>
             <span className="font-semibold">Ville:</span> {formData.location}
+          </p>
+          <p>
+            <span className="font-semibold">Experience:</span>{" "}
+            {formData.experienceYears ? `${formData.experienceYears} ans` : "-"}
           </p>
           <p>
             <span className="font-semibold">Source:</span> {formData.referralSource}

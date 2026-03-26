@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { PlaceholdersAndVanishInput } from "./ui/placeholders-and-vanish-input";
 
 function Navbar({
   onSearch = () => {},
@@ -9,10 +10,20 @@ function Navbar({
 }) {
   const [search, setSearch] = useState("");
   const [logoSrc, setLogoSrc] = useState("/design-sans-titre.png");
+  const searchRef = useRef("");
+  const searchPlaceholders = [
+    "Dermatologue a Casablanca",
+    "Dentiste a Fes",
+    "Cardiologue Rabat",
+    "Ophtalmologue proche de moi",
+  ];
 
   const handleSearch = (e) => {
-    e.preventDefault();
-    onSearch(search);
+    if (e?.preventDefault) e.preventDefault();
+    const value = searchRef.current.trim();
+    if (!value) return;
+    onSearch(value);
+    searchRef.current = "";
   };
 
   return (
@@ -42,22 +53,16 @@ function Navbar({
 
           <div className="flex w-full gap-2 sm:w-auto">
             {showSearch && (
-              <form onSubmit={handleSearch} className="flex w-full gap-2 sm:w-auto">
-                <input
-                  type="text"
-                  placeholder="Search specialty..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full rounded-xl border border-white/50 bg-white/70 px-4 py-2 text-sm text-slate-700 outline-none transition focus:border-cyan-300 sm:w-56"
+              <div className="w-full sm:w-72">
+                <PlaceholdersAndVanishInput
+                  placeholders={searchPlaceholders}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    searchRef.current = e.target.value;
+                  }}
+                  onSubmit={handleSearch}
                 />
-
-                <button
-                  type="submit"
-                  className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700"
-                >
-                  Search
-                </button>
-              </form>
+              </div>
             )}
 
             {actionLabel && (
