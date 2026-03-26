@@ -1,6 +1,8 @@
 import { Navigate } from "react-router-dom";
-function LocalProtectedRoute({ children, allowedRole }) {
-  const isSignedIn = localStorage.getItem("reservation-auth") === "1";
+import { useAuth } from "@clerk/clerk-react";
+
+function ProtectedRoute({ children, allowedRole }) {
+  const { isSignedIn } = useAuth();
 
   if (!isSignedIn) {
     return <Navigate to="/login" replace />;
@@ -11,15 +13,15 @@ function LocalProtectedRoute({ children, allowedRole }) {
   }
 
   const role = localStorage.getItem("reservation-role");
+  if (!role) {
+    return <Navigate to="/login" replace />;
+  }
+
   if (role !== allowedRole) {
     return <Navigate to={role === "doctor" ? "/doctor" : "/doctors"} replace />;
   }
 
   return children;
-}
-
-function ProtectedRoute(props) {
-  return <LocalProtectedRoute {...props} />;
 }
 
 export default ProtectedRoute;

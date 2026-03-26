@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { useAuth, useClerk } from "@clerk/clerk-react";
 import { getAppointments } from "../services/api";
 import DoctorDashboardHeader from "./doctor-dashboard/DoctorDashboardHeader";
 import DoctorDashboardSidebar from "./doctor-dashboard/DoctorDashboardSidebar";
@@ -141,20 +142,25 @@ function DoctorDashboardView({ onLogout, ownerKey }) {
 
 function DoctorDashboardLocal() {
   const [ownerKey, setOwnerKey] = useState("");
+  const { userId } = useAuth();
+  const { signOut } = useClerk();
 
   useEffect(() => {
+    if (userId) {
+      setOwnerKey(userId);
+      return;
+    }
     let localDoctorKey = localStorage.getItem("reservation-local-doctor-key");
     if (!localDoctorKey) {
       localDoctorKey = `local-doctor-${Date.now()}`;
       localStorage.setItem("reservation-local-doctor-key", localDoctorKey);
     }
     setOwnerKey(localDoctorKey);
-  }, []);
+  }, [userId]);
 
   const handleLogout = () => {
-    localStorage.removeItem("reservation-auth");
     localStorage.removeItem("reservation-role");
-    window.location.href = "/";
+    signOut({ redirectUrl: "/" });
   };
 
   if (!ownerKey) {

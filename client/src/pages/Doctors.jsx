@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useClerk } from "@clerk/clerk-react";
 import { Skeleton } from "@mantine/core";
 import { Bell, Bot, Calendar, Home, MessageCircle, User } from "lucide-react";
 import {
@@ -1106,10 +1107,11 @@ function DoctorsView({ onLogout }) {
 }
 
 function DoctorsLocal() {
+  const { signOut } = useClerk();
+
   const handleLogout = () => {
-    localStorage.removeItem("reservation-auth");
     localStorage.removeItem("reservation-role");
-    window.location.href = "/";
+    signOut({ redirectUrl: "/" });
   };
 
   return <DoctorsView onLogout={handleLogout} />;

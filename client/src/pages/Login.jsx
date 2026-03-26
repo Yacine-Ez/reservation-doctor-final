@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { SignIn, SignedIn, SignedOut, useAuth } from "@clerk/clerk-react";
+
 function Login() {
   const navigate = useNavigate();
+  const { isSignedIn } = useAuth();
   const [role, setRole] = useState("");
-  const [form, setForm] = useState({ fullName: "", email: "" });
-  const [error, setError] = useState("");
 
   useEffect(() => {
     const savedRole = localStorage.getItem("reservation-role");
@@ -16,25 +17,11 @@ function Login() {
     setRole(selectedRole);
   };
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    const fullName = form.fullName.trim();
-    const email = form.email.trim();
-    if (!role) {
-      setError("Choisis un role pour continuer.");
-      return;
+  useEffect(() => {
+    if (isSignedIn && role) {
+      navigate(role === "doctor" ? "/doctor" : "/doctors", { replace: true });
     }
-    if (!fullName || !email) {
-      setError("Entre ton nom complet et ton email.");
-      return;
-    }
-    localStorage.setItem("reservation-auth", "1");
-    localStorage.setItem(
-      "reservation-user",
-      JSON.stringify({ fullName, email, role })
-    );
-    navigate(role === "doctor" ? "/doctor" : "/doctors", { replace: true });
-  };
+  }, [isSignedIn, role, navigate]);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-4 sm:p-6">
@@ -80,8 +67,6 @@ function Login() {
               </p>
             )}
 
-            {error && <p className="mt-4 text-sm font-medium text-red-300">{error}</p>}
-
             <button
               type="button"
               onClick={() => navigate("/")}
@@ -92,44 +77,38 @@ function Login() {
           </section>
 
           <section className="flex items-center justify-center border-t border-slate-800 bg-slate-950/40 p-6 md:border-l md:border-t-0">
-            <form
-              onSubmit={handleSubmit}
-              className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-6 sm:p-8 text-left text-sm text-slate-200"
-            >
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Nom complet
-                </label>
-                <input
-                  type="text"
-                  value={form.fullName}
-                  onChange={(event) => setForm((prev) => ({ ...prev, fullName: event.target.value }))}
-                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
-                  placeholder="Ex: Yacine Ez"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
-                  placeholder="you@example.com"
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-              >
-                Continuer
-              </button>
-              {!role && (
-                <p className="text-xs text-slate-400">Selectionne un role a gauche.</p>
-              )}
-            </form>
+            <div className="w-full max-w-sm">
+              <SignedOut>
+                <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4 sm:p-6">
+                  <SignIn
+                    routing="path"
+                    path="/login"
+                    appearance={{
+                      variables: { colorPrimary: "#22d3ee" },
+                      elements: {
+                        card: "shadow-none bg-transparent border-0 p-0",
+                        headerTitle: "text-white",
+                        headerSubtitle: "text-slate-300",
+                        socialButtonsBlockButton:
+                          "border border-slate-700 text-slate-100 hover:border-cyan-400",
+                        formButtonPrimary:
+                          "bg-cyan-500 text-slate-950 hover:bg-cyan-400",
+                      },
+                    }}
+                  />
+                </div>
+              </SignedOut>
+              <SignedIn>
+                <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-6 text-sm text-slate-200">
+                  <p className="font-semibold text-white">Connexion reussie.</p>
+                  {!role && (
+                    <p className="mt-2 text-xs text-slate-400">
+                      Choisis un role a gauche pour continuer.
+                    </p>
+                  )}
+                </div>
+              </SignedIn>
+            </div>
           </section>
         </div>
       </div>
