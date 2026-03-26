@@ -52,17 +52,30 @@ function DoctorsView({ onLogout }) {
   const patientLocation = patientProfile?.location?.trim() || "";
 
   const openChatForDoctor = async (doctor) => {
-    if (!doctor) return;
+    const resolvedDoctor =
+      doctor && typeof doctor === "object"
+        ? doctor
+        : doctors.find((item) => String(item.id) === String(doctor)) ||
+          doctors.find((item) => item.name === doctor);
+
+    if (!resolvedDoctor?.id || !resolvedDoctor?.name) {
+      console.warn("Chat creation skipped: missing doctor data", doctor);
+      window.alert("Impossible d'ouvrir le chat. Le docteur est introuvable.");
+      return;
+    }
+
     const thread = chatThreads.find(
-      (item) => Number(item.doctorId) === Number(doctor.id) || item.name === doctor.name
+      (item) =>
+        Number(item.doctorId) === Number(resolvedDoctor.id) ||
+        item.name === resolvedDoctor.name
     );
     if (thread) {
       setActiveChatId(thread.id);
     } else {
       const created = await createChat({
-        doctorId: doctor.id,
-        name: doctor.name,
-        specialty: doctor.specialty,
+        doctorId: resolvedDoctor.id,
+        name: resolvedDoctor.name,
+        specialty: resolvedDoctor.specialty,
       });
       setChatThreads((prev) => [...prev, created.data]);
       setActiveChatId(created.data.id);
