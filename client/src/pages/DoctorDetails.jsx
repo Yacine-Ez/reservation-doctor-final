@@ -1,6 +1,5 @@
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import axios from "axios";
 import { MessageCircle } from "lucide-react";
 import {
   confirmCheckoutSession,
@@ -8,6 +7,7 @@ import {
   createChat,
   createCheckoutSession,
   getDoctorAvailability,
+  getDoctorById,
 } from "../services/api";
 
 function DoctorDetails() {
@@ -20,8 +20,7 @@ function DoctorDetails() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
 
   useEffect(() => {
-    axios
-      .get(`/api/doctors/${id}`)
+    getDoctorById(id)
       .then((res) => setDoctor(res.data))
       .catch((err) => console.log(err));
   }, [id]);
