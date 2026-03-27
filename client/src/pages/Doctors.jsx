@@ -11,6 +11,8 @@ import {
   getDoctors,
   sendChatMessage,
   updateAppointment,
+  updateChatSlots,
+  getDoctorAvailability,
   getPatientProfile,
   upsertPatientProfile,
 } from "../services/api";
@@ -50,6 +52,37 @@ function DoctorsView({ onLogout }) {
 
   const activeChat = chatThreads.find((thread) => thread.id === activeChatId);
   const patientLocation = patientProfile?.location?.trim() || "";
+  const todayDate = new Date().toISOString().slice(0, 10);
+
+  const formatSlotLabel = (dateStr, time) => {
+    if (!dateStr || !time) return "";
+    if (dateStr === todayDate) return `Aujourd'hui ${time}`;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+    if (dateStr === tomorrowStr) return `Demain ${time}`;
+    return `${dateStr} ${time}`;
+  };
+
+  const refreshChatSlots = async (dateStr) => {
+    if (!activeChat) return;
+    const doctorId = activeChat.doctorId || activeChat.id;
+    if (!doctorId) return;
+    try {
+      const res = await getDoctorAvailability(doctorId, dateStr);
+      const times = res.data?.available || [];
+      if (!times.length) {
+        window.alert("Aucun creneau disponible pour cette date.");
+      }
+      const slots = times.map((time) => formatSlotLabel(dateStr, time));
+      const updated = await updateChatSlots(activeChat.id, slots);
+      setChatThreads((prev) =>
+        prev.map((thread) => (thread.id === updated.data.id ? updated.data : thread))
+      );
+    } catch {
+      window.alert("Impossible de recuperer les creneaux.");
+    }
+  };
 
   const openChatForDoctor = async (doctor) => {
     const resolvedDoctor =
@@ -844,12 +877,27 @@ function DoctorsView({ onLogout }) {
                         <h3 className="text-xl font-semibold text-slate-900">{activeChat.name}</h3>
                         <p className="text-xs text-slate-500">{activeChat.specialty}</p>
                       </div>
-                      <button
-                        type="button"
-                        className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
-                      >
-                        Demander rendez-vous
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextDate = new Date();
+                            nextDate.setDate(nextDate.getDate() + 1);
+                            const nextDateStr = nextDate.toISOString().slice(0, 10);
+                            refreshChatSlots(nextDateStr);
+                          }}
+                          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-900"
+                        >
+                          RDV standard
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => refreshChatSlots(todayDate)}
+                          className="rounded-xl bg-rose-500 px-4 py-2 text-xs font-semibold text-white"
+                        >
+                          Urgent aujourd'hui
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex-1 rounded-2xl border border-slate-100 bg-slate-50/70 p-4 space-y-3 max-h-[420px] overflow-y-auto">
@@ -880,6 +928,8 @@ function DoctorsView({ onLogout }) {
                                   chatId: activeChat.id,
                                   doctorId: activeChat.doctorId || activeChat.id,
                                   slot,
+                                  patientKey: localStorage.getItem("reservation-patient-key"),
+                                  patientName: localStorage.getItem("reservation-patient-name") || "",
                                 });
                                 setAppointments((prev) => [...prev, appointment.data]);
                                 const updated = await sendChatMessage(activeChat.id, {
@@ -1065,6 +1115,61 @@ function DoctorsView({ onLogout }) {
                           className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-900"
                         >
                           Imprimer recu
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const win = window.open("", "_blank", "width=720,height=900");
+                            if (!win) return;
+                            const now = new Date().toLocaleString("fr-FR");
+                            const patientName =
+                              appt.patientName ||
+                              localStorage.getItem("reservation-patient-name") ||
+                              "Patient";
+                            win.document.write(`
+                              <html>
+                                <head>
+                                  <title>Ordonnance</title>
+                                  <style>
+                                    body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+                                    .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+                                    h1 { font-size: 20px; margin-bottom: 12px; }
+                                    .row { margin: 6px 0; }
+                                    .label { font-weight: 700; }
+                                    .muted { color: #64748b; font-size: 12px; margin-top: 12px; }
+                                    .section { margin-top: 16px; }
+                                    .line { border-bottom: 1px dashed #cbd5f5; height: 20px; }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="card">
+                                    <h1>Ordonnance medicale</h1>
+                                    <div class="row"><span class="label">Patient:</span> ${patientName}</div>
+                                    <div class="row"><span class="label">Medecin:</span> ${appt.doctorName}</div>
+                                    <div class="row"><span class="label">Specialite:</span> ${appt.specialty}</div>
+                                    <div class="row"><span class="label">Date RDV:</span> ${appt.slot}</div>
+                                    <div class="section">
+                                      <div class="label">Prescription</div>
+                                      <div class="line"></div>
+                                      <div class="line"></div>
+                                      <div class="line"></div>
+                                    </div>
+                                    <div class="section">
+                                      <div class="label">Notes</div>
+                                      <div class="line"></div>
+                                      <div class="line"></div>
+                                    </div>
+                                    <div class="muted">Genere le ${now}</div>
+                                  </div>
+                                  <script>window.print();</script>
+                                </body>
+                              </html>
+                            `);
+                            win.document.close();
+                          }}
+                          className="rounded-full border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700 hover:border-emerald-400"
+                        >
+                          Ordonnance PDF
                         </button>
                       </div>
                     </div>

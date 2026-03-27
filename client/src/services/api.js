@@ -37,3 +37,7 @@ export const updateAppointment = (id, payload) =>
   API.put(`/appointments/${id}`, payload);
 export const getDoctorAvailability = (doctorId, date) =>
   API.get(`/doctors/${doctorId}/availability`, { params: { date } });
+export const getDoctorReviews = (doctorId) =>
+  API.get(`/doctors/${doctorId}/reviews`);
+export const createDoctorReview = (doctorId, payload) =>
+  API.post(`/doctors/${doctorId}/reviews`, payload);

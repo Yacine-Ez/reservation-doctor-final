@@ -155,6 +155,19 @@ function mapDoctor(doctor) {
   };
 }
 
+async function recalcDoctorRating(doctorId) {
+  const aggregate = await prisma.review.aggregate({
+    where: { doctorId },
+    _avg: { rating: true },
+  });
+  const nextRating = aggregate._avg?.rating ?? null;
+  await prisma.doctor.update({
+    where: { id: doctorId },
+    data: { rating: nextRating },
+  });
+  return nextRating;
+}
+
 app.get("/api/doctors", (req, res) => {
   prisma.doctor
     .findMany()
@@ -194,6 +207,52 @@ app.get("/api/doctors/:id/availability", async (req, res) => {
     const available = DEFAULT_TIME_SLOTS.filter((time) => !reservedTimes.has(time));
     return res.json({ date, available });
   } catch {
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
+app.get("/api/doctors/:id/reviews", async (req, res) => {
+  const doctorId = Number(req.params.id);
+  if (!doctorId) {
+    return res.status(400).json({ message: "doctorId is required" });
+  }
+  try {
+    const reviews = await prisma.review.findMany({
+      where: { doctorId },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json(reviews);
+  } catch (error) {
+    console.error("Reviews fetch error:", error);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
+app.post("/api/doctors/:id/reviews", async (req, res) => {
+  const doctorId = Number(req.params.id);
+  const { rating, comment, patientKey, patientName } = req.body || {};
+  if (!doctorId) {
+    return res.status(400).json({ message: "doctorId is required" });
+  }
+  const numericRating = Number(rating);
+  if (!numericRating || numericRating < 1 || numericRating > 5) {
+    return res.status(400).json({ message: "rating must be between 1 and 5" });
+  }
+
+  try {
+    const review = await prisma.review.create({
+      data: {
+        doctorId,
+        rating: numericRating,
+        comment: comment ? String(comment).trim() : null,
+        patientKey: patientKey || null,
+        patientName: patientName ? String(patientName).trim() : null,
+      },
+    });
+    await recalcDoctorRating(doctorId);
+    return res.status(201).json(review);
+  } catch (error) {
+    console.error("Review create error:", error);
     return res.status(500).json({ message: "server error" });
   }
 });

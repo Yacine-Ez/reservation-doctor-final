@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SignIn, SignedIn, SignedOut, useAuth } from "@clerk/clerk-react";
+import { SignIn, SignUp, SignedIn, SignedOut, useAuth } from "@clerk/clerk-react";
 
 function Login() {
   const navigate = useNavigate();
   const { isSignedIn } = useAuth();
   const [role, setRole] = useState("");
+  const [authMode, setAuthMode] = useState("signIn");
 
   useEffect(() => {
     const savedRole = localStorage.getItem("reservation-role");
@@ -61,6 +62,31 @@ function Login() {
               </button>
             </div>
 
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAuthMode("signIn")}
+                className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                  authMode === "signIn"
+                    ? "bg-white text-slate-950"
+                    : "border border-slate-700 text-slate-200 hover:border-cyan-400"
+                }`}
+              >
+                Se connecter
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode("signUp")}
+                className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                  authMode === "signUp"
+                    ? "bg-cyan-500 text-slate-950"
+                    : "border border-slate-700 text-slate-200 hover:border-cyan-400"
+                }`}
+              >
+                Inscription
+              </button>
+            </div>
+
             {!role && (
               <p className="mt-4 text-sm text-slate-400">
                 Selectionne un role pour afficher le formulaire de login.
@@ -80,22 +106,41 @@ function Login() {
             <div className="w-full max-w-sm">
               <SignedOut>
                 <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4 sm:p-6">
-                  <SignIn
-                    routing="path"
-                    path="/login"
-                    appearance={{
-                      variables: { colorPrimary: "#22d3ee" },
-                      elements: {
-                        card: "shadow-none bg-transparent border-0 p-0",
-                        headerTitle: "text-white",
-                        headerSubtitle: "text-slate-300",
-                        socialButtonsBlockButton:
-                          "border border-slate-700 text-slate-100 hover:border-cyan-400",
-                        formButtonPrimary:
-                          "bg-cyan-500 text-slate-950 hover:bg-cyan-400",
-                      },
-                    }}
-                  />
+                  {authMode === "signUp" ? (
+                    <SignUp
+                      routing="path"
+                      path="/login"
+                      appearance={{
+                        variables: { colorPrimary: "#22d3ee" },
+                        elements: {
+                          card: "shadow-none bg-transparent border-0 p-0",
+                          headerTitle: "text-white",
+                          headerSubtitle: "text-slate-300",
+                          socialButtonsBlockButton:
+                            "border border-slate-700 text-slate-100 hover:border-cyan-400",
+                          formButtonPrimary:
+                            "bg-cyan-500 text-slate-950 hover:bg-cyan-400",
+                        },
+                      }}
+                    />
+                  ) : (
+                    <SignIn
+                      routing="path"
+                      path="/login"
+                      appearance={{
+                        variables: { colorPrimary: "#22d3ee" },
+                        elements: {
+                          card: "shadow-none bg-transparent border-0 p-0",
+                          headerTitle: "text-white",
+                          headerSubtitle: "text-slate-300",
+                          socialButtonsBlockButton:
+                            "border border-slate-700 text-slate-100 hover:border-cyan-400",
+                          formButtonPrimary:
+                            "bg-cyan-500 text-slate-950 hover:bg-cyan-400",
+                        },
+                      }}
+                    />
+                  )}
                 </div>
               </SignedOut>
               <SignedIn>

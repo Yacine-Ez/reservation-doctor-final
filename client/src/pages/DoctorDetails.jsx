@@ -8,6 +8,8 @@ import {
   createCheckoutSession,
   getDoctorAvailability,
   getDoctorById,
+  getDoctorReviews,
+  createDoctorReview,
 } from "../services/api";
 
 function DoctorDetails() {
@@ -18,11 +20,25 @@ function DoctorDetails() {
   const [availability, setAvailability] = useState([]);
   const [bookingStatus, setBookingStatus] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [urgentToday, setUrgentToday] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  const [reviewRating, setReviewRating] = useState("5");
+  const [reviewStatus, setReviewStatus] = useState("");
+  const [loadingReviews, setLoadingReviews] = useState(true);
 
   useEffect(() => {
     getDoctorById(id)
       .then((res) => setDoctor(res.data))
       .catch((err) => console.log(err));
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoadingReviews(true);
+    getDoctorReviews(id)
+      .then((res) => setReviews(res.data || []))
+      .catch(() => setReviews([]))
+      .finally(() => setLoadingReviews(false));
   }, [id]);
 
   useEffect(() => {
@@ -34,6 +50,12 @@ function DoctorDetails() {
       })
       .catch(() => setAvailability([]));
   }, [date, id]);
+
+  useEffect(() => {
+    if (!urgentToday) return;
+    const today = new Date().toISOString().slice(0, 10);
+    setDate(today);
+  }, [urgentToday]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -88,7 +110,16 @@ function DoctorDetails() {
         </div>
 
         <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
-          <h3 className="text-lg font-semibold text-slate-900">Book a visit</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-lg font-semibold text-slate-900">Book a visit</h3>
+            <button
+              type="button"
+              onClick={() => setUrgentToday(true)}
+              className="rounded-full bg-rose-500 px-4 py-2 text-xs font-semibold text-white"
+            >
+              Urgent aujourd'hui
+            </button>
+          </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <input
               type="date"
@@ -170,6 +201,74 @@ function DoctorDetails() {
             Reserver
           </button>
           {bookingStatus && <p className="mt-3 text-sm text-slate-600">{bookingStatus}</p>}
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5">
+          <h3 className="text-lg font-semibold text-slate-900">Avis des patients</h3>
+          {loadingReviews ? (
+            <p className="mt-3 text-sm text-slate-500">Chargement...</p>
+          ) : reviews.length ? (
+            <div className="mt-4 space-y-3">
+              {reviews.map((review) => (
+                <div key={review.id} className="rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {review.patientName || "Patient"}
+                    </p>
+                    <span className="text-xs text-yellow-600">
+                      {"★".repeat(review.rating).padEnd(5, "☆")}
+                    </span>
+                  </div>
+                  {review.comment && (
+                    <p className="mt-2 text-sm text-slate-600">{review.comment}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-slate-500">Pas encore d'avis.</p>
+          )}
+
+          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-800">Laisser un avis</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[200px_1fr]">
+              <select
+                value={reviewRating}
+                onChange={(event) => setReviewRating(event.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+              >
+                <option value="5">5 - Excellent</option>
+                <option value="4">4 - Tres bien</option>
+                <option value="3">3 - Bien</option>
+                <option value="2">2 - Moyen</option>
+                <option value="1">1 - Mauvais</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                setReviewStatus("");
+                try {
+                  const patientName = localStorage.getItem("reservation-patient-name") || "";
+                  const patientKey = localStorage.getItem("reservation-patient-key") || "";
+                  const created = await createDoctorReview(id, {
+                    rating: Number(reviewRating),
+                    patientName,
+                    patientKey,
+                  });
+                  setReviews((prev) => [created.data, ...prev]);
+                  setReviewRating("5");
+                  setReviewStatus("Merci pour votre avis !");
+                } catch (err) {
+                  setReviewStatus("Impossible d'envoyer l'avis.");
+                }
+              }}
+              className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Envoyer l'avis
+            </button>
+            {reviewStatus && <p className="mt-2 text-sm text-slate-600">{reviewStatus}</p>}
+          </div>
         </div>
       </div>
     </div>

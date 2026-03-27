@@ -23,6 +23,7 @@ model Doctor {
   createdAt      DateTime  @default(now())
   chats          ChatThread[]
   appointments   Appointment[]
+  reviews        Review[]
 }
 
 model Patient {
@@ -76,5 +77,16 @@ model Appointment {
   checkoutSessionId String?
   patientKey String?
   patientName String?
+  createdAt  DateTime @default(now())
+}
+
+model Review {
+  id         Int      @id @default(autoincrement())
+  doctorId   Int
+  doctor     Doctor   @relation(fields: [doctorId], references: [id])
+  patientKey String?
+  patientName String?
+  rating     Int
+  comment    String?
   createdAt  DateTime @default(now())
 }

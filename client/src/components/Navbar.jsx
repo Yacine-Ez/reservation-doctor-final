@@ -7,6 +7,8 @@ function Navbar({
   showSearch = true,
   actionLabel,
   onActionClick,
+  adminLabel,
+  onAdminClick,
 }) {
   const [search, setSearch] = useState("");
   const [logoSrc, setLogoSrc] = useState("/design-sans-titre.png");
@@ -63,6 +65,16 @@ function Navbar({
                   onSubmit={handleSearch}
                 />
               </div>
+            )}
+
+            {adminLabel && (
+              <button
+                type="button"
+                onClick={onAdminClick}
+                className="rounded-xl border border-white/40 bg-white/20 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/80"
+              >
+                {adminLabel}
+              </button>
             )}
 
             {actionLabel && (
